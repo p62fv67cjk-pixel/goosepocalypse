@@ -7,22 +7,20 @@ let sfxCtx=null,stepClock=0;
 const recordedGunshot=new Audio(new URL("./Gun%201.wav",import.meta.url).href);
 const recordedReload=new Audio(new URL("./gun-cocking-04.wav",import.meta.url).href);
 recordedGunshot.preload="auto";recordedReload.preload="auto";
-let gunBuffer=null,reloadBuffer=null;
-async function loadRecordedAudio(){
-  try{
+let gunBuffer=null,reloadBuffer=null,audioLoadPromise=null;
+function loadRecordedAudio(){
+  if(audioLoadPromise)return audioLoadPromise;
+  audioLoadPromise=(async()=>{try{
     const [a,b]=await Promise.all([fetch(recordedGunshot.src,{cache:"force-cache"}),fetch(recordedReload.src,{cache:"force-cache"})]);
     if(!a.ok||!b.ok)throw new Error("Audio files not served by Pages");
     const [ab,bb]=await Promise.all([a.arrayBuffer(),b.arrayBuffer()]);
     const c=audioReady();if(!c)return;
     [gunBuffer,reloadBuffer]=await Promise.all([c.decodeAudioData(ab),c.decodeAudioData(bb)]);
     console.info("Geese With Teeth audio loaded", {gun:!!gunBuffer,reload:!!reloadBuffer});
-  }catch(e){console.warn("Recorded audio load failed; using HTML audio fallback",e)}
+  }catch(e){console.warn("Recorded audio load failed; using HTML audio fallback",e)}})();
+  return audioLoadPromise;
 }
-function unlockGameAudio(){
-  const c=audioReady();if(c&&c.state==="suspended")c.resume();
-  if(recordedGunshot.paused){const p=recordedGunshot.play();if(p&&p.then)p.then(()=>{recordedGunshot.pause();recordedGunshot.currentTime=0}).catch(()=>{})}
-  loadRecordedAudio();
-}
+function unlockGameAudio(){const c=audioReady();if(c&&c.state==="suspended")c.resume();loadRecordedAudio();}
 window.addEventListener("pointerdown",unlockGameAudio,{passive:true});
 function playBuffer(buffer,fallback,volume=1){
   const c=audioReady();
