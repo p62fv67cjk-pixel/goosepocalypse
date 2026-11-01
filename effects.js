@@ -73,12 +73,18 @@ function jumpWhoosh(){
   src.buffer=buf;filter.type='lowpass';filter.frequency.setValueAtTime(1350,c.currentTime);filter.frequency.exponentialRampToValueAtTime(420,c.currentTime+dur);
   gain.gain.setValueAtTime(.0001,c.currentTime);gain.gain.exponentialRampToValueAtTime(.2,c.currentTime+.035);gain.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);
   src.connect(filter);filter.connect(gain);gain.connect(c.destination);src.start();
-  try{gravel.currentTime=0;gravel.volume=.5;nativePlay.call(gravel);setTimeout(()=>{gravel.pause();gravel.currentTime=0},150)}catch{}
+}
+function landingImpact(){
+  try{gravel.pause();gravel.currentTime=0;gravel.volume=.58;nativePlay.call(gravel);setTimeout(()=>{gravel.pause();gravel.currentTime=0},170)}catch{}
 }
 const jumpBtn=document.querySelector('#jump');
 jumpBtn?.addEventListener('pointerdown',()=>{
-  if(jumping)return;jumping=true;stopTrack(true);jumpWhoosh();
-  setTimeout(()=>{jumping=false;syncMovement()},560);
+  if(jumping)return;
+  jumping=true;
+  stopTrack(true);
+  jumpWhoosh();
+  setTimeout(landingImpact,900);
+  setTimeout(()=>{jumping=false;syncMovement()},1020);
 },{capture:true});
 
 // Blood-on-bite screen splashes, driven by actual health loss so it works without touching game internals.
