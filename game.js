@@ -51,27 +51,16 @@ function footstepCrunch(running=false){
  // Decode and play the uploaded recordings through Web Audio for consistent iOS playback.
  const recorded=running?runBuffer:(surfaceIndex?gravelBuffer:grassBuffer);
  if(recorded)playBuffer(recorded,clip,running?1:.95);else playFoot(clip,running?1:.95);
- if(!c)return;
- const t=c.currentTime;
- const duration=running?.19:.15;
- const n=Math.floor(c.sampleRate*duration),buf=c.createBuffer(1,n,c.sampleRate),data=buf.getChannelData(0);
- for(let i=0;i<n;i++){const env=Math.pow(1-i/n,2.1);data[i]=(Math.random()*2-1)*env*(running?.7:.52)}
- const src=c.createBufferSource(),filter=c.createBiquadFilter(),gain=c.createGain();
- src.buffer=buf;filter.type="bandpass";filter.frequency.value=running?1050:760;filter.Q.value=.72;
- gain.gain.setValueAtTime(running?.19:.14,t);gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
- src.connect(filter);filter.connect(gain);gain.connect(c.destination);src.start(t);
- const thump=c.createOscillator(),tg=c.createGain();thump.type="sine";thump.frequency.setValueAtTime(running?92:74,t);thump.frequency.exponentialRampToValueAtTime(42,t+.095);
- tg.gain.setValueAtTime(running?.12:.09,t);tg.gain.exponentialRampToValueAtTime(.0001,t+.11);
- thump.connect(tg);tg.connect(c.destination);thump.start(t);thump.stop(t+.12);
+ // Uploaded recordings only. No synthetic arcade noise layered over footsteps.
 }
 function sfx(kind){
  if(kind==="step"){footstepCrunch(sprint);return}
- if(kind==="land"){const c=audioReady();if(c){noise(.2,.24,420);tone(58,0,.2,"sine",.22,-25);setTimeout(()=>noise(.1,.1,1050),25)}return}
+ if(kind==="land"){playFoot(footGravel,.9);return}
  audioReady();
  if(kind==="shot"){playBuffer(gunBuffer,recordedGunshot,1)}
  else if(kind==="reload"){playBuffer(reloadBuffer,recordedReload,1)}
  else if(!sfxCtx)return;
- else if(kind==="chop"){noise(.09,.16,900);tone(95,0,.16,"triangle",.16,-50);setTimeout(()=>tone(230,0,.07,"sine",.06,-120),35)}else if(kind==="jump"){noise(.22,.2,1500);tone(78,0,.2,"sine",.16,105);setTimeout(()=>{noise(.16,.11,2200);tone(190,0,.14,"triangle",.08,120)},45)}
+ else if(kind==="chop"){ /* no synthetic arcade hit sound */ }else if(kind==="jump"){ /* no synthetic jump effect until a real recording is provided */ }
 else if(kind==="land"){noise(.09,.08,750);tone(62,0,.16,"sine",.12,-30)}else if(kind==="hurt"){tone(130,0,.22,"sawtooth",.09,-65);noise(.08,.06,650)}
 else if(kind==="goose"){const boss=Math.random()<.16,base=boss?105:145;tone(base,0,boss?.62:.34,"sawtooth",boss?.13:.085,boss?-65:-95);setTimeout(()=>{tone(base*1.8,0,.12,"square",.045,-base*.7);noise(boss?.42:.2,boss?.12:.075,850)},boss?90:35);setTimeout(()=>{tone(base*.68,0,boss?.48:.22,"triangle",.075,-base*.35);noise(.13,.045,520)},boss?260:130)}
 else if(kind==="bossgoose"){tone(78,0,.9,"sawtooth",.16,-48);noise(.7,.16,700);setTimeout(()=>tone(118,0,.55,"square",.08,-72),180)}}
