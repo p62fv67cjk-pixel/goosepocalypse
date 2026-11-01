@@ -1,5 +1,13 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/+esm";
-const $=s=>document.querySelector(s),C=$("#game"),R=new THREE.WebGLRenderer({canvas:C,antialias:true,powerPreference:"high-performance"});R.setPixelRatio(Math.min(devicePixelRatio,1.35));R.outputColorSpace=THREE.SRGBColorSpace;const S=new THREE.Scene();S.background=new THREE.Color(0x10131b);S.fog=new THREE.FogExp2(0x202431,.012);const cam=new THREE.PerspectiveCamera(72,1,.1,120);cam.position.set(0,1.7,5);S.add(cam);S.add(new THREE.HemisphereLight(0x8399b4,0x160d0d,1.2));let ml=new THREE.DirectionalLight(0xffb6a0,2.8);ml.position.set(-12,18,9);S.add(ml);let rg=new THREE.PointLight(0xa11830,13,35);rg.position.set(12,7,-18);S.add(rg);let ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({color:0x19281f}));ground.rotation.x=-Math.PI/2;S.add(ground);
+const $=s=>document.querySelector(s),C=$("#game"),R=new THREE.WebGLRenderer({canvas:C,antialias:true,powerPreference:"high-performance"});R.setPixelRatio(Math.min(devicePixelRatio,1.35));R.outputColorSpace=THREE.SRGBColorSpace;const S=new THREE.Scene();S.background=new THREE.Color(0x10131b);S.fog=new THREE.FogExp2(0x202431,.012);const cam=new THREE.PerspectiveCamera(72,1,.1,120);cam.position.set(0,1.7,5);S.add(cam);S.add(new THREE.HemisphereLight(0x8399b4,0x160d0d,1.2));let ml=new THREE.DirectionalLight(0xffb6a0,2.8);ml.position.set(-12,18,9);S.add(ml);let rg=new THREE.PointLight(0xa11830,13,35);rg.position.set(12,7,-18);S.add(rg);
+const bloodMoon=new THREE.Group();
+const moonCore=new THREE.Mesh(new THREE.SphereGeometry(8,40,32),new THREE.MeshStandardMaterial({color:0x8e101c,emissive:0x9e0718,emissiveIntensity:1.25,roughness:1,metalness:0}));
+bloodMoon.add(moonCore);
+const moonHalo=new THREE.Mesh(new THREE.SphereGeometry(10.1,32,24),new THREE.MeshBasicMaterial({color:0x9f1726,transparent:true,opacity:.16,side:THREE.BackSide,depthWrite:false}));
+bloodMoon.add(moonHalo);
+const moonLight=new THREE.PointLight(0x9d1424,22,150);moonLight.position.set(0,0,0);bloodMoon.add(moonLight);
+bloodMoon.position.set(-27,37,-92);S.add(bloodMoon);
+let ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({color:0x19281f}));ground.rotation.x=-Math.PI/2;S.add(ground);
 const trunk=new THREE.MeshStandardMaterial({color:0x35241f}),leaf=new THREE.MeshStandardMaterial({color:0x10271b});for(let i=0;i<150;i++){let a=Math.random()*6.28,r=18+Math.random()*78,x=Math.cos(a)*r,z=Math.sin(a)*r,t=new THREE.Mesh(new THREE.CylinderGeometry(.13,.28,4.5,7),trunk);t.position.set(x,2.25,z);S.add(t);let c=new THREE.Mesh(new THREE.ConeGeometry(1.8,5.2,8),leaf);c.position.set(x,5.1,z);S.add(c);let c2=new THREE.Mesh(new THREE.ConeGeometry(1.35,4.1,8),leaf);c2.position.set(x,7.2,z);S.add(c2)}
 const geese=[],parts=[];let hero="Phoenix",difficulty="medium",mate=null,hp=100,maxHp=100,ammo=14,maxAmmo=14,wave=1,score=0,playing=false,paused=false,yaw=0,pitch=0,mx=0,my=0,vy=0,onGround=true,sprint=false,reloading=false,pending=0,nextWave=false,run=0,last=performance.now();
 // Procedural sound effects: generated locally with Web Audio, no extra downloads.
@@ -11,16 +19,17 @@ const footGrass=new Audio("./mixkit-footsteps-on-tall-grass-532.wav"),footGravel
 [footGrass,footGravel,footRun].forEach(a=>{a.preload="auto";a.volume=1});
 function unlockFootsteps(){for(const a of [footGrass,footGravel,footRun]){a.muted=true;const p=a.play();if(p&&p.then)p.then(()=>{a.pause();a.currentTime=0;a.muted=false}).catch(()=>{a.muted=false});else a.muted=false}}
 function playFoot(a,volume=1){try{a.pause();a.currentTime=0;a.muted=false;a.volume=volume;const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
-let gunBuffer=null,reloadBuffer=null,audioLoadPromise=null;
+let gunBuffer=null,reloadBuffer=null,grassBuffer=null,gravelBuffer=null,runBuffer=null,audioLoadPromise=null;
 function loadRecordedAudio(){
   if(audioLoadPromise)return audioLoadPromise;
   audioLoadPromise=(async()=>{try{
-    const [a,b]=await Promise.all([fetch(recordedGunshot.src,{cache:"force-cache"}),fetch(recordedReload.src,{cache:"force-cache"})]);
-    if(!a.ok||!b.ok)throw new Error("Audio files not served by Pages");
-    const [ab,bb]=await Promise.all([a.arrayBuffer(),b.arrayBuffer()]);
+    const urls=[recordedGunshot.src,recordedReload.src,footGrass.src,footGravel.src,footRun.src];
+    const responses=await Promise.all(urls.map(u=>fetch(u,{cache:"force-cache"})));
+    const bad=responses.findIndex(r=>!r.ok);if(bad>=0)throw new Error("Audio file unavailable: "+urls[bad]);
+    const data=await Promise.all(responses.map(r=>r.arrayBuffer()));
     const c=audioReady();if(!c)return;
-    [gunBuffer,reloadBuffer]=await Promise.all([c.decodeAudioData(ab),c.decodeAudioData(bb)]);
-    console.info("Geese With Teeth audio loaded", {gun:!!gunBuffer,reload:!!reloadBuffer});
+    [gunBuffer,reloadBuffer,grassBuffer,gravelBuffer,runBuffer]=await Promise.all(data.map(b=>c.decodeAudioData(b)));
+    console.info("Geese With Teeth audio loaded",{gun:!!gunBuffer,reload:!!reloadBuffer,grass:!!grassBuffer,gravel:!!gravelBuffer,run:!!runBuffer});
   }catch(e){console.warn("Recorded audio load failed; using HTML audio fallback",e)}})();
   return audioLoadPromise;
 }
@@ -39,7 +48,7 @@ function footstepCrunch(running=false){
  const c=audioReady();
  const clip=running?footRun:(footToggle++%2?footGrass:footGravel);
  // Play the supplied field recording first; synthesize a full-bodied layer as a reliable fallback/enhancement.
- playFoot(clip,running?1:.95);
+ const recorded=running?runBuffer:(footToggle%2?grassBuffer:gravelBuffer);if(recorded)playBuffer(recorded,clip,running?1:.95);else playFoot(clip,running?1:.95);
  if(!c)return;
  const t=c.currentTime;
  const duration=running?.19:.15;
@@ -55,12 +64,12 @@ function footstepCrunch(running=false){
 }
 function sfx(kind){
  if(kind==="step"){footstepCrunch(sprint);return}
- if(kind==="land"){footstepCrunch(true);return}
+ if(kind==="land"){const c=audioReady();if(c){noise(.2,.24,420);tone(58,0,.2,"sine",.22,-25);setTimeout(()=>noise(.1,.1,1050),25)}return}
  audioReady();
  if(kind==="shot"){playBuffer(gunBuffer,recordedGunshot,1)}
  else if(kind==="reload"){playBuffer(reloadBuffer,recordedReload,1)}
  else if(!sfxCtx)return;
- else if(kind==="chop"){noise(.09,.16,900);tone(95,0,.16,"triangle",.16,-50);setTimeout(()=>tone(230,0,.07,"sine",.06,-120),35)}else if(kind==="jump"){noise(.11,.13,1100);tone(105,0,.16,"triangle",.13,95);setTimeout(()=>{noise(.12,.055,1700);tone(245,0,.17,"sine",.045,180)},65)}
+ else if(kind==="chop"){noise(.09,.16,900);tone(95,0,.16,"triangle",.16,-50);setTimeout(()=>tone(230,0,.07,"sine",.06,-120),35)}else if(kind==="jump"){noise(.22,.2,1500);tone(78,0,.2,"sine",.16,105);setTimeout(()=>{noise(.16,.11,2200);tone(190,0,.14,"triangle",.08,120)},45)}
 else if(kind==="land"){noise(.09,.08,750);tone(62,0,.16,"sine",.12,-30)}else if(kind==="hurt"){tone(130,0,.22,"sawtooth",.09,-65);noise(.08,.06,650)}
 else if(kind==="goose"){const boss=Math.random()<.16,base=boss?105:145;tone(base,0,boss?.62:.34,"sawtooth",boss?.13:.085,boss?-65:-95);setTimeout(()=>{tone(base*1.8,0,.12,"square",.045,-base*.7);noise(boss?.42:.2,boss?.12:.075,850)},boss?90:35);setTimeout(()=>{tone(base*.68,0,boss?.48:.22,"triangle",.075,-base*.35);noise(.13,.045,520)},boss?260:130)}
 else if(kind==="bossgoose"){tone(78,0,.9,"sawtooth",.16,-48);noise(.7,.16,700);setTimeout(()=>tone(118,0,.55,"square",.08,-72),180)}}
