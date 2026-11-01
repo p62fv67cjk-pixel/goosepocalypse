@@ -4,8 +4,8 @@ const trunk=new THREE.MeshStandardMaterial({color:0x35241f}),leaf=new THREE.Mesh
 const geese=[],parts=[];let hero="Phoenix",difficulty="medium",mate=null,hp=100,maxHp=100,ammo=14,maxAmmo=14,wave=1,score=0,playing=false,paused=false,yaw=0,pitch=0,mx=0,my=0,vy=0,onGround=true,sprint=false,reloading=false,pending=0,nextWave=false,run=0,last=performance.now();
 // Procedural sound effects: generated locally with Web Audio, no extra downloads.
 let sfxCtx=null,stepClock=0;
-const recordedGunshot=new Audio(new URL("./gunshot.mp3",import.meta.url).href);
-const recordedReload=new Audio(new URL("./reload.mp3",import.meta.url).href);
+const recordedGunshot=new Audio(new URL("./Gun%201.wav",import.meta.url).href);
+const recordedReload=new Audio(new URL("./gun-cocking-04.wav",import.meta.url).href);
 recordedGunshot.preload="auto";recordedReload.preload="auto";
 function playRecorded(a,volume=1){try{a.pause();a.currentTime=0;a.volume=volume;const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
 function audioReady(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!sfxCtx)sfxCtx=new AC();if(sfxCtx.state==="suspended")sfxCtx.resume();return sfxCtx}catch(e){return null}}
