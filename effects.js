@@ -18,9 +18,16 @@ function stopTrack(reset=true){for(const a of[walk,run]){try{a.pause();if(reset)
 async function playTrack(a){if(current===a&&!a.paused)return;stopTrack(true);current=a;a.muted=false;try{await nativePlay.call(a)}catch{}}
 function syncMovement(){if(!gameActive()||!moving||jumping){stopTrack(true);return}playTrack(sprinting?run:walk)}
 let ctx=null;
-function ensureCtx(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!ctx)ctx=new AC();if(ctx.state==='suspended')ctx.resume();return ctx}catch{return null}}
-async function unlock(){if(unlocked)return;unlocked=true;for(const a of[walk,run,gravel]){try{a.muted=true;await nativePlay.call(a);a.pause();a.currentTime=0;a.muted=false}catch{a.muted=false}}ensureCtx()}
-document.addEventListener('pointerdown',unlock,{once:true,capture:true});
+function ensureCtx(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!ctx)ctx=new AC();if(ctx.state==='suspended')ctx.resume().catch(()=>{});return ctx}catch{return null}}
+async function unlock(){
+ // iOS can suspend an already-unlocked AudioContext after app switching, calls, Siri, or locking.
+ // Every fresh user gesture must therefore try to resume the context, not return early forever.
+ ensureCtx();
+ if(unlocked)return;
+ unlocked=true;
+ for(const a of[walk,run,gravel]){try{a.muted=true;await nativePlay.call(a);a.pause();a.currentTime=0;a.muted=false}catch{a.muted=false}}
+}
+document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
 const pad=document.querySelector('#move');
 if(pad){
  const readMove=e=>{if(movePointer!==null&&e.pointerId!==movePointer)return;const r=pad.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;moving=Math.hypot(x,y)>Math.min(r.width,r.height)*.12;syncMovement()};
