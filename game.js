@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),C=$("#game"),R=new THREE.WebGLRenderer({can
 const trunk=new THREE.MeshStandardMaterial({color:0x35241f}),leaf=new THREE.MeshStandardMaterial({color:0x10271b});for(let i=0;i<150;i++){let a=Math.random()*6.28,r=18+Math.random()*78,x=Math.cos(a)*r,z=Math.sin(a)*r,t=new THREE.Mesh(new THREE.CylinderGeometry(.13,.28,4.5,7),trunk);t.position.set(x,2.25,z);S.add(t);let c=new THREE.Mesh(new THREE.ConeGeometry(1.8,5.2,8),leaf);c.position.set(x,5.1,z);S.add(c);let c2=new THREE.Mesh(new THREE.ConeGeometry(1.35,4.1,8),leaf);c2.position.set(x,7.2,z);S.add(c2)}
 const geese=[],parts=[];let hero="Phoenix",difficulty="medium",mate=null,hp=100,maxHp=100,ammo=14,maxAmmo=14,wave=1,score=0,playing=false,paused=false,yaw=0,pitch=0,mx=0,my=0,vy=0,onGround=true,sprint=false,reloading=false,pending=0,nextWave=false,run=0,last=performance.now();
 // Procedural sound effects: generated locally with Web Audio, no extra downloads.
-let sfxCtx=null,stepClock=0;
+let sfxCtx=null,stepClock=0,footToggle=0;
 const recordedGunshot=new Audio(new URL("./Gun%201.wav",import.meta.url).href);
 const recordedReload=new Audio(new URL("./gun-cocking-04.wav",import.meta.url).href);
 recordedGunshot.preload="auto";recordedReload.preload="auto";
