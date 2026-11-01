@@ -7,6 +7,10 @@ let sfxCtx=null,stepClock=0;
 const recordedGunshot=new Audio(new URL("./Gun%201.wav",import.meta.url).href);
 const recordedReload=new Audio(new URL("./gun-cocking-04.wav",import.meta.url).href);
 recordedGunshot.preload="auto";recordedReload.preload="auto";
+const footGrass=new Audio("./footsteps-grass.mp3"),footGravel=new Audio("./footsteps-gravel.mp3"),footRun=new Audio("./footsteps-run.mp3");
+[footGrass,footGravel,footRun].forEach(a=>{a.preload="auto";a.volume=.9});
+let footToggle=0;
+function playFoot(a,volume=.9){try{a.pause();a.currentTime=0;a.volume=volume;const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
 let gunBuffer=null,reloadBuffer=null,audioLoadPromise=null;
 function loadRecordedAudio(){
   if(audioLoadPromise)return audioLoadPromise;
@@ -31,9 +35,9 @@ function playRecorded(a,volume=1){try{a.pause();a.currentTime=0;a.volume=volume;
 function audioReady(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!sfxCtx)sfxCtx=new AC();if(sfxCtx.state==="suspended")sfxCtx.resume();return sfxCtx}catch(e){return null}}
 function tone(freq,end,duration,type="sawtooth",gain=.12,slide=0){const c=audioReady();if(!c)return;const t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),t+duration);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+duration+.02)}
 function noise(duration=.12,gain=.1,filter=1200){const c=audioReady();if(!c)return;const t=c.currentTime,n=Math.max(1,Math.floor(c.sampleRate*duration)),b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=b;f.type="lowpass";f.frequency.value=filter;g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.0001,t+duration);s.connect(f);f.connect(g);g.connect(c.destination);s.start(t)}
-function sfx(kind){audioReady();if(kind==="shot"){playBuffer(gunBuffer,recordedGunshot,1)}else if(kind==="reload"){playBuffer(reloadBuffer,recordedReload,1)}else if(!sfxCtx)return;else if(kind==="chop"){noise(.09,.16,900);tone(95,0,.16,"triangle",.16,-50);setTimeout(()=>tone(230,0,.07,"sine",.06,-120),35)}else if(kind==="step"){const heavy=sprint?.095:.065;noise(.085,heavy*1.8, sprint?620:480);tone(sprint?92:68,0,sprint?.11:.09,"triangle",sprint?.13:.105,sprint?-38:-24);setTimeout(()=>noise(.045,.055,1250),22);if(Math.random()<.35)tone(155,0,.035,"sine",.018,-55)}
+function sfx(kind){audioReady();if(kind==="shot"){playBuffer(gunBuffer,recordedGunshot,1)}else if(kind==="reload"){playBuffer(reloadBuffer,recordedReload,1)}else if(!sfxCtx)return;else if(kind==="chop"){noise(.09,.16,900);tone(95,0,.16,"triangle",.16,-50);setTimeout(()=>tone(230,0,.07,"sine",.06,-120),35)}else if(kind==="step"){if(sprint)playFoot(footRun,1);else{playFoot((footToggle++%2)?footGrass:footGravel,.95)}}
 else if(kind==="jump"){noise(.11,.13,1100);tone(105,0,.16,"triangle",.13,95);setTimeout(()=>{noise(.12,.055,1700);tone(245,0,.17,"sine",.045,180)},65)}
-else if(kind==="land"){noise(.14,.18,750);tone(62,0,.19,"sine",.18,-30);setTimeout(()=>noise(.07,.035,1500),35)}else if(kind==="hurt"){tone(130,0,.22,"sawtooth",.09,-65);noise(.08,.06,650)}
+else if(kind==="land"){playFoot(footGravel,1);noise(.09,.08,750);tone(62,0,.16,"sine",.12,-30)}else if(kind==="hurt"){tone(130,0,.22,"sawtooth",.09,-65);noise(.08,.06,650)}
 else if(kind==="goose"){const boss=Math.random()<.16,base=boss?105:145;tone(base,0,boss?.62:.34,"sawtooth",boss?.13:.085,boss?-65:-95);setTimeout(()=>{tone(base*1.8,0,.12,"square",.045,-base*.7);noise(boss?.42:.2,boss?.12:.075,850)},boss?90:35);setTimeout(()=>{tone(base*.68,0,boss?.48:.22,"triangle",.075,-base*.35);noise(.13,.045,520)},boss?260:130)}
 else if(kind==="bossgoose"){tone(78,0,.9,"sawtooth",.16,-48);noise(.7,.16,700);setTimeout(()=>tone(118,0,.55,"square",.08,-72),180)}}
 const white=new THREE.MeshStandardMaterial({color:0xe9e5d9}),orange=new THREE.MeshStandardMaterial({color:0xe77616}),gum=new THREE.MeshStandardMaterial({color:0x7b1c2b});
