@@ -1,3 +1,4 @@
+import './landscape.js';
 // Geese With Teeth original adaptive soundtrack.
 // Procedural WebAudio only: no samples or borrowed melodies.
 const AudioCtx=window.AudioContext||window.webkitAudioContext;
