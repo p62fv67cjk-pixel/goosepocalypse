@@ -10,17 +10,21 @@ if(menu){
   document.head.appendChild(style);
 }
 
-// Official Geese With Teeth soundtrack, recorded from the chosen Suno version.
+// Official Geese With Teeth soundtrack. One Audio instance only, so repeated runs never stack music loops.
 const track=new Audio('./geese-with-teeth-suno.m4a');
 track.loop=true;track.preload='auto';track.volume=.72;track.playsInline=true;
-let wanted=false;
+let wanted=false,starting=false;
 const button=document.createElement('button');
-button.id='musicToggle';button.textContent='♫ OFF';button.setAttribute('aria-label','Toggle music');
-Object.assign(button.style,{position:'fixed',right:'12px',top:'calc(env(safe-area-inset-top) + 115px)',zIndex:'16',width:'54px',height:'34px',borderRadius:'18px',border:'1px solid #ffffff88',background:'#111b',color:'#fff',fontWeight:'900',fontSize:'10px'});
+button.id='musicToggle';button.textContent='♫ OFF';button.setAttribute('aria-label','Toggle music');button.setAttribute('aria-pressed','false');
+Object.assign(button.style,{position:'fixed',right:'12px',top:'calc(env(safe-area-inset-top) + 115px)',zIndex:'16',width:'54px',height:'34px',borderRadius:'18px',border:'1px solid #ffffff88',background:'#111b',color:'#fff',fontWeight:'900',fontSize:'10px',touchAction:'manipulation'});
 document.body.appendChild(button);
-async function startMusic(){wanted=true;try{await track.play();button.textContent='♫ ON'}catch{button.textContent='♫ TAP'}}
-function stopMusic(){wanted=false;track.pause();button.textContent='♫ OFF'}
-button.addEventListener('click',e=>{e.stopPropagation();(!track.paused&&wanted)?stopMusic():startMusic()});
-document.querySelector('.start')?.addEventListener('click',()=>{track.currentTime=0;startMusic()});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)track.pause();else if(wanted)startMusic()});
-track.addEventListener('error',()=>button.textContent='♫ ERR');
+function paint(){const audible=wanted&&!track.paused;button.textContent=audible?'♫ ON':wanted?'♫ TAP':'♫ OFF';button.setAttribute('aria-pressed',String(audible))}
+async function startMusic({restart=false}={}){wanted=true;if(starting)return;starting=true;try{if(restart)track.currentTime=0;await track.play()}catch{}finally{starting=false;paint()}}
+function stopMusic(){wanted=false;track.pause();paint()}
+button.addEventListener('click',e=>{e.stopPropagation();wanted?stopMusic():startMusic()});
+// PLAY is a guaranteed user gesture on iPhone. Restart the official track exactly once for each new run.
+document.querySelector('.start')?.addEventListener('click',()=>startMusic({restart:true}));
+// iOS may suspend media when Safari backgrounds. Resume only if the player had music enabled.
+document.addEventListener('visibilitychange',()=>{if(document.hidden){track.pause();paint()}else if(wanted)startMusic()});
+window.addEventListener('pagehide',()=>{track.pause();paint()});
+track.addEventListener('play',paint);track.addEventListener('pause',paint);track.addEventListener('error',()=>{button.textContent='♫ ERR';button.setAttribute('aria-pressed','false')});
