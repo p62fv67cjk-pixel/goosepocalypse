@@ -41,8 +41,80 @@ else if(kind==="land"){playFoot(footGravel,1);noise(.09,.08,750);tone(62,0,.16,"
 else if(kind==="goose"){const boss=Math.random()<.16,base=boss?105:145;tone(base,0,boss?.62:.34,"sawtooth",boss?.13:.085,boss?-65:-95);setTimeout(()=>{tone(base*1.8,0,.12,"square",.045,-base*.7);noise(boss?.42:.2,boss?.12:.075,850)},boss?90:35);setTimeout(()=>{tone(base*.68,0,boss?.48:.22,"triangle",.075,-base*.35);noise(.13,.045,520)},boss?260:130)}
 else if(kind==="bossgoose"){tone(78,0,.9,"sawtooth",.16,-48);noise(.7,.16,700);setTimeout(()=>tone(118,0,.55,"square",.08,-72),180)}}
 const white=new THREE.MeshStandardMaterial({color:0xe9e5d9}),orange=new THREE.MeshStandardMaterial({color:0xe77616}),gum=new THREE.MeshStandardMaterial({color:0x7b1c2b});
-function goose(type="normal"){let g=new THREE.Group(),boss=type==="boss",fast=type==="fast",brute=type==="brute",mat=new THREE.MeshStandardMaterial({color:boss?0x99958f:brute?0x62676a:0xe9e5d9});let b=new THREE.Mesh(new THREE.SphereGeometry(.55,12,9),mat);b.scale.set(1,.72,1.4);g.add(b);let n=new THREE.Mesh(new THREE.CylinderGeometry(.15,.22,.9,8),mat);n.position.set(0,.65,-.4);g.add(n);let h=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),mat);h.position.set(0,1.1,-.58);g.add(h);let m=new THREE.Mesh(new THREE.BoxGeometry(.34,.16,.4),gum);m.position.set(0,1,-.9);g.add(m);let beak=new THREE.Mesh(new THREE.ConeGeometry(.2,.5,4),orange);beak.rotation.x=-Math.PI/2;beak.position.set(0,1.08,-1.04);g.add(beak);for(let side of[-1,1]){let socket=new THREE.Mesh(new THREE.SphereGeometry(.105,8,6),new THREE.MeshStandardMaterial({color:0x180609,roughness:.35}));socket.position.set(.19*side,1.2,-.79);g.add(socket);let eye=new THREE.Mesh(new THREE.SphereGeometry(.073,10,8),new THREE.MeshBasicMaterial({color:0xff101c}));eye.position.set(.19*side,1.2,-.875);g.add(eye);let glint=new THREE.Mesh(new THREE.SphereGeometry(.022,6,5),new THREE.MeshBasicMaterial({color:0xffffff}));glint.position.set(.19*side-.018,1.225,-.934);g.add(glint)}for(let side of[-1,1]){let wing=new THREE.Group();wing.position.set(.43*side,.02,.02);wing.rotation.z=side*.16;let featherMat=new THREE.MeshStandardMaterial({color:boss?0x55515a:brute?0x41464b:0xd8d8d2,roughness:.92});for(let j=0;j<7;j++){let feather=new THREE.Mesh(new THREE.SphereGeometry(.19,8,6),featherMat);feather.scale.set(.62,.34,1.35);feather.position.set(side*j*.075,-.08-j*.018,.48-j*.19);feather.rotation.y=side*.22;wing.add(feather)}g.add(wing)}for(let q=-2;q<=2;q++){let tooth=new THREE.Mesh(new THREE.ConeGeometry(.045,.16,5),new THREE.MeshStandardMaterial({color:0xf4e8d4,roughness:.5}));tooth.position.set(q*.065,.96,-1.13);tooth.rotation.x=Math.PI;g.add(tooth);let lower=new THREE.Mesh(new THREE.ConeGeometry(.035,.12,5),new THREE.MeshStandardMaterial({color:0xf4e8d4}));lower.position.set(q*.065,.84,-1.12);g.add(lower)}let a=Math.random()*6.28,r=30+Math.random()*38;g.position.set(Math.sin(a)*r,.72,Math.cos(a)*r);let scale=boss?2.25:brute?1.45:fast?0.82:1;g.scale.setScalar(scale);let dm=difficulty==="easy"?{hp:.72,speed:.86,damage:.62}:{hard:{hp:1.48,speed:1.24,damage:1.48}}[difficulty]||{hp:1,speed:1,damage:1};g.userData={nextCall:performance.now()+900+Math.random()*2800,hp:(boss?20+wave*2:brute?8+wave*.4:fast?2:3+wave*.18)*dm.hp,speed:(boss?.72:brute?.7:fast?1.8+wave*.03:1+wave*.03)*dm.speed,type,damage:(boss?35:brute?28:fast?16:20)*dm.damage,bob:Math.random()*6};S.add(g);geese.push(g);if(boss)sfx("bossgoose");else if(Math.random()<.7)sfx("goose")}
-function teammate(name){let g=new THREE.Group(),col=name==="Mummy"?0xe4bd18:0x7440b9,cloth=new THREE.MeshStandardMaterial({color:col}),skin=new THREE.MeshStandardMaterial({color:0xd9a184}),hair=new THREE.MeshStandardMaterial({color:name==="Mummy"?0x684631:0x38261f});let body=new THREE.Mesh(new THREE.CapsuleGeometry(.4,.82,4,7),cloth);body.position.y=1;g.add(body);let head=new THREE.Mesh(new THREE.SphereGeometry(.34,12,9),skin);head.position.y=1.84;head.scale.set(.88,1.08,.9);g.add(head);let cap=new THREE.Mesh(new THREE.SphereGeometry(.35,10,7,0,6.28,0,1.5),hair);cap.position.y=1.96;g.add(cap);for(let s of[-1,1]){let eye=new THREE.Mesh(new THREE.SphereGeometry(.026,5,4),new THREE.MeshBasicMaterial({color:0x281714}));eye.position.set(.11*s,1.89,-.3);g.add(eye)}if(name==="Mummy"){let a=new THREE.Mesh(new THREE.TorusGeometry(.18,.05,6,10),cloth);a.position.y=2.4;a.rotation.x=Math.PI/2;g.add(a)}else{let a=new THREE.Mesh(new THREE.ConeGeometry(.2,.38,3),cloth);a.position.y=2.42;g.add(a)}g.userData={name,cd:0,bob:0};S.add(g);return g}
+function goose(type="normal"){
+ let g=new THREE.Group(),boss=type==="boss",fast=type==="fast",brute=type==="brute";
+ const plum=new THREE.MeshStandardMaterial({color:boss?0x28252d:brute?0x454950:0xe7e2d7,roughness:.94});
+ const featherMat=new THREE.MeshStandardMaterial({color:boss?0x17151d:brute?0x353a40:0xf7f0e4,roughness:.88});
+ const dark=new THREE.MeshStandardMaterial({color:0x100b12,roughness:.55});
+ const red=new THREE.MeshStandardMaterial({color:0xff061b,emissive:0xff0018,emissiveIntensity:3.8});
+ const beakMat=new THREE.MeshStandardMaterial({color:boss?0x6f151d:0xd65a18,roughness:.55});
+ const toothMat=new THREE.MeshStandardMaterial({color:0xfff1d7,roughness:.32});
+ const body=new THREE.Mesh(new THREE.SphereGeometry(.62,20,14),plum);body.scale.set(1.02,.78,1.42);body.position.y=.8;g.add(body);
+ // Tail fan feathers
+ for(let i=-3;i<=3;i++){let f=new THREE.Mesh(new THREE.SphereGeometry(.19,9,7),featherMat);f.scale.set(.55,.45,1.65);f.position.set(i*.105,.98,1.02+Math.abs(i)*.025);f.rotation.x=-.18;f.rotation.y=i*.13;g.add(f)}
+ // Layered wing coverts and long flight feathers on both sides
+ for(let side of[-1,1]){
+  let wing=new THREE.Group();wing.position.set(side*.48,1.02,.04);wing.rotation.z=-side*.12;
+  for(let j=0;j<9;j++){let f=new THREE.Mesh(new THREE.SphereGeometry(.17,9,7),featherMat);f.scale.set(.58,.38,1.55);f.position.set(side*j*.065,-.12-j*.018,.38-j*.145);f.rotation.y=side*.18;wing.add(f)}
+  for(let j=0;j<6;j++){let f=new THREE.Mesh(new THREE.SphereGeometry(.14,8,6),plum);f.scale.set(.8,.48,1.25);f.position.set(side*j*.055,.06,.02-j*.12);wing.add(f)}
+  g.add(wing);
+ }
+ // Upright curved-looking neck and head
+ let neck=new THREE.Mesh(new THREE.CylinderGeometry(.145,.22,.78,12),plum);neck.position.set(0,1.48,-.56);neck.rotation.x=-.22;g.add(neck);
+ let head=new THREE.Mesh(new THREE.SphereGeometry(.29,16,12),plum);head.scale.set(1,.92,1.13);head.position.set(0,1.94,-.66);g.add(head);
+ // Brow ridges and glowing eyes facing forward
+ for(let side of[-1,1]){
+  let brow=new THREE.Mesh(new THREE.BoxGeometry(.22,.075,.11),dark);brow.position.set(side*.155,2.09,-.86);brow.rotation.z=side*.16;g.add(brow);
+  let socket=new THREE.Mesh(new THREE.SphereGeometry(.105,12,9),dark);socket.position.set(side*.155,1.99,-.91);g.add(socket);
+  let eye=new THREE.Mesh(new THREE.SphereGeometry(.071,12,9),red);eye.position.set(side*.155,1.99,-.99);g.add(eye);
+  let pupil=new THREE.Mesh(new THREE.SphereGeometry(.027,8,6),new THREE.MeshBasicMaterial({color:0xffc7c7}));pupil.position.set(side*.155-.012,2.01,-1.05);g.add(pupil);
+ }
+ // Open mouth cavity, upper/lower beak and individually visible teeth
+ let mouth=new THREE.Mesh(new THREE.BoxGeometry(.38,.19,.16),new THREE.MeshBasicMaterial({color:0x21050a}));mouth.position.set(0,1.78,-1.02);g.add(mouth);
+ let upper=new THREE.Mesh(new THREE.ConeGeometry(.22,.43,5),beakMat);upper.rotation.x=-Math.PI/2;upper.position.set(0,1.86,-1.17);g.add(upper);
+ let lower=new THREE.Mesh(new THREE.BoxGeometry(.36,.085,.3),beakMat);lower.position.set(0,1.69,-1.12);g.add(lower);
+ for(let i=-2;i<=2;i++){let t=new THREE.Mesh(new THREE.ConeGeometry(.038,.14,5),toothMat);t.position.set(i*.065,1.77,-1.12);t.rotation.x=Math.PI;g.add(t);let q=new THREE.Mesh(new THREE.ConeGeometry(.032,.11,5),toothMat);q.position.set(i*.065,1.72,-1.105);g.add(q)}
+ // Orange webbed feet and dark claws
+ for(let side of[-1,1]){let leg=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.3,7),beakMat);leg.position.set(side*.22,.25,-.05);g.add(leg);let foot=new THREE.Mesh(new THREE.BoxGeometry(.22,.07,.32),beakMat);foot.position.set(side*.22,.09,-.16);g.add(foot);for(let k=-1;k<=1;k++){let claw=new THREE.Mesh(new THREE.ConeGeometry(.025,.12,5),dark);claw.rotation.x=Math.PI/2;claw.position.set(side*.22+k*.065,.075,-.32);g.add(claw)}}
+ let angle=Math.random()*Math.PI*2,r=30+Math.random()*38;g.position.set(Math.sin(angle)*r,.02,Math.cos(angle)*r);
+ let scale=boss?2.25:brute?1.45:fast?.82:1;g.scale.setScalar(scale);
+ let dm=difficulty==="easy"?{hp:.72,speed:.86,damage:.62}:difficulty==="hard"?{hp:1.48,speed:1.24,damage:1.48}:{hp:1,speed:1,damage:1};
+ g.userData={nextCall:performance.now()+900+Math.random()*2800,hp:(boss?20+wave*2:brute?8+wave*.4:fast?2:3+wave*.18)*dm.hp,speed:(boss?.72:brute?.7:fast?1.8+wave*.03:1+wave*.03)*dm.speed,type,damage:(boss?35:brute?28:fast?16:20)*dm.damage,bob:Math.random()*6};
+ S.add(g);geese.push(g);if(boss)sfx("bossgoose");else if(Math.random()<.7)sfx("goose")
+}
+function teammate(name){
+ let g=new THREE.Group(),mummy=name==="Mummy";
+ const outfit=new THREE.MeshStandardMaterial({color:mummy?0xf0c51c:0x7436c8,roughness:.78});
+ const trim=new THREE.MeshStandardMaterial({color:mummy?0xffe56a:0xb88bff,roughness:.7});
+ const skin=new THREE.MeshStandardMaterial({color:mummy?0xe9b99d:0xd99b78,roughness:.82});
+ const hair=new THREE.MeshStandardMaterial({color:mummy?0x70472e:0x3b261c,roughness:.95});
+ const dark=new THREE.MeshStandardMaterial({color:0x241916});
+ const shoe=new THREE.MeshStandardMaterial({color:mummy?0x382b24:0x25202d});
+ // Body, jacket panels, collar and belt make each outfit read as clothing
+ let torso=new THREE.Mesh(new THREE.CapsuleGeometry(.34,.68,5,10),outfit);torso.position.y=1.08;g.add(torso);
+ let bib=new THREE.Mesh(new THREE.BoxGeometry(.39,.48,.045),trim);bib.position.set(0,1.16,-.31);g.add(bib);
+ let belt=new THREE.Mesh(new THREE.BoxGeometry(.62,.09,.38),dark);belt.position.y=.72;g.add(belt);
+ // Separate legs and boots for a human silhouette
+ for(let side of[-1,1]){let leg=new THREE.Mesh(new THREE.CapsuleGeometry(.115,.48,4,8),outfit);leg.position.set(side*.17,.39,0);g.add(leg);let boot=new THREE.Mesh(new THREE.BoxGeometry(.23,.14,.34),shoe);boot.position.set(side*.17,.09,-.055);g.add(boot);
+  let arm=new THREE.Mesh(new THREE.CapsuleGeometry(.105,.48,4,8),outfit);arm.position.set(side*.43,1.12,0);arm.rotation.z=side*-.12;g.add(arm);let hand=new THREE.Mesh(new THREE.SphereGeometry(.105,9,7),skin);hand.position.set(side*.44,.78,-.02);g.add(hand)}
+ // Neck and shaped head with ears, cheeks, nose, eyes and brows
+ let neck=new THREE.Mesh(new THREE.CylinderGeometry(.105,.12,.18,10),skin);neck.position.y=1.65;g.add(neck);
+ let head=new THREE.Mesh(new THREE.SphereGeometry(.3,20,16),skin);head.scale.set(.88,1.08,.88);head.position.set(0,1.96,-.015);g.add(head);
+ for(let side of[-1,1]){let ear=new THREE.Mesh(new THREE.SphereGeometry(.075,10,8),skin);ear.position.set(side*.27,1.97,-.005);g.add(ear);
+  let eyeWhite=new THREE.Mesh(new THREE.SphereGeometry(.047,10,8),new THREE.MeshStandardMaterial({color:0xfff7ed}));eyeWhite.position.set(side*.105,2.005,-.266);g.add(eyeWhite);
+  let pupil=new THREE.Mesh(new THREE.SphereGeometry(.023,8,6),dark);pupil.position.set(side*.105,2.005,-.306);g.add(pupil);
+  let brow=new THREE.Mesh(new THREE.BoxGeometry(.11,.035,.035),hair);brow.position.set(side*.105,2.075,-.27);g.add(brow)}
+ let nose=new THREE.Mesh(new THREE.SphereGeometry(.055,9,7),skin);nose.scale.set(.8,.75,.8);nose.position.set(0,1.94,-.29);g.add(nose);
+ let mouth=new THREE.Mesh(new THREE.BoxGeometry(.105,.018,.018),dark);mouth.position.set(0,1.84,-.277);g.add(mouth);
+ // Hair cap plus fringe/side locks
+ let cap=new THREE.Mesh(new THREE.SphereGeometry(.305,16,10,0,Math.PI*2,0,Math.PI*.58),hair);cap.position.set(0,2.055,-.005);g.add(cap);
+ for(let side of[-1,1]){let lock=new THREE.Mesh(new THREE.SphereGeometry(.105,9,7),hair);lock.scale.set(.75,1.5,.8);lock.position.set(side*.235,1.98,-.02);g.add(lock)}
+ let fringe=new THREE.Mesh(new THREE.SphereGeometry(.2,12,8),hair);fringe.scale.set(1.2,.45,.75);fringe.position.set(0,2.14,-.2);g.add(fringe);
+ // Signature antenna silhouette: yellow loop for Mummy, purple triangular spike for Phoenix
+ if(mummy){let stem=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.24,8),outfit);stem.position.y=2.36;g.add(stem);let loop=new THREE.Mesh(new THREE.TorusGeometry(.17,.045,9,18),trim);loop.position.set(0,2.57,0);g.add(loop)}
+ else{let stem=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.2,8),outfit);stem.position.y=2.34;g.add(stem);let spike=new THREE.Mesh(new THREE.ConeGeometry(.18,.34,3),trim);spike.position.set(0,2.57,0);spike.rotation.y=Math.PI/2;g.add(spike)}
+ g.userData={name,cd:0,bob:0};S.add(g);return g
+}
 function say(t,ms=900){let e=$("#message");e.textContent=t;e.style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>e.style.opacity=0,ms)}function burst(p,col=0xffc266){for(let i=0;i<3;i++){let x=new THREE.Mesh(new THREE.SphereGeometry(.03,4,3),new THREE.MeshBasicMaterial({color:col}));x.position.copy(p);x.userData={life:.25,v:new THREE.Vector3((Math.random()-.5)*2,Math.random(),(Math.random()-.5)*2)};S.add(x);parts.push(x)}}
 function spawn(){nextWave=false;let token=run,count=Math.max(3,Math.min(24,Math.round((7+wave*2)*(difficulty==="easy"?.8:difficulty==="hard"?1.3:1)))),boss=wave%5===0;pending=count+(boss?1:0);say(boss?`BOSS WAVE ${wave}`:`WAVE ${wave}`,1200);$("#wave").textContent=`WAVE ${wave}`;for(let i=0;i<count;i++)setTimeout(()=>{if(playing&&run===token)goose(i%7===6&&wave>2?"brute":i%5===4?"fast":"normal");pending--},i*110);if(boss)setTimeout(()=>{if(playing&&run===token)goose("boss");pending--},600)}
 function config(){if(hero==="Phoenix"){maxHp=100;maxAmmo=14}else{maxHp=140;maxAmmo=18}if(difficulty==="easy"){maxHp=Math.round(maxHp*1.35);maxAmmo+=4}else if(difficulty==="hard"){maxHp=Math.round(maxHp*.85)}hp=maxHp;ammo=maxAmmo;$("#heroHud").textContent=`${hero.toUpperCase()} + ${hero==="Phoenix"?"MUMMY":"PHOENIX"}`}document.querySelectorAll(".difficulty").forEach(b=>b.onclick=()=>{document.querySelectorAll(".difficulty").forEach(x=>x.classList.remove("on"));b.classList.add("on");difficulty=b.dataset.difficulty;config();say(`${difficulty.toUpperCase()} MODE`,700)});document.querySelectorAll(".pick").forEach(b=>b.onclick=()=>{document.querySelectorAll(".pick").forEach(x=>x.classList.remove("on"));b.classList.add("on");hero=b.dataset.hero;config()});
