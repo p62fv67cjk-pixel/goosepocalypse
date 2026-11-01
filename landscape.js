@@ -1,1 +1,23 @@
-const portrait=document.createElement('div');portrait.id='rotateLandscape';portrait.innerHTML='<div><b>GEESE WITH TEETH</b><span>↻</span><p>Rotate your iPhone sideways to play</p></div>';Object.assign(portrait.style,{position:'fixed',inset:'0',zIndex:'9999',background:'#05060b',color:'#fff',display:'none',alignItems:'center',justifyContent:'center',textAlign:'center',fontFamily:'Impact,Arial Black,sans-serif'});portrait.firstElementChild.style.cssText='padding:28px';portrait.querySelector('b').style.cssText='display:block;font-size:clamp(34px,11vw,72px);font-style:italic;text-shadow:3px 4px #7b0d17';portrait.querySelector('span').style.cssText='display:block;font-size:72px;color:#ef2535;margin:18px';portrait.querySelector('p').style.cssText='font-family:Arial,sans-serif;font-weight:800;letter-spacing:1px';document.body.appendChild(portrait);function checkOrientation(){portrait.style.display=innerHeight>innerWidth?'flex':'none'}async function goLandscape(){try{await document.documentElement.requestFullscreen?.()}catch{}try{await screen.orientation?.lock?.('landscape')}catch{}checkOrientation()}addEventListener('resize',checkOrientation,{passive:true});addEventListener('orientationchange',()=>setTimeout(checkOrientation,120),{passive:true});checkOrientation();document.querySelector('.start')?.addEventListener('click',goLandscape);
+// Orientation helper for Geese With Teeth.
+// Gameplay is intentionally supported in both portrait and landscape. Never cover the game
+// with a rotate-screen blocker: iPhone/iPad users may prefer either orientation.
+let orientationHint=null;
+function ensureHint(){
+  if(orientationHint)return orientationHint;
+  orientationHint=document.createElement('div');
+  orientationHint.id='orientationHint';
+  orientationHint.textContent='↻ Landscape gives you a wider view';
+  Object.assign(orientationHint.style,{position:'fixed',left:'50%',bottom:'calc(env(safe-area-inset-bottom) + 150px)',transform:'translateX(-50%)',zIndex:'20',padding:'7px 12px',borderRadius:'999px',background:'#05060bcc',color:'#fff',font:'700 11px Arial,sans-serif',letterSpacing:'.2px',pointerEvents:'none',opacity:'0',transition:'opacity .25s',whiteSpace:'nowrap'});
+  document.body.appendChild(orientationHint);
+  return orientationHint;
+}
+function showPortraitHint(){
+  if(innerHeight<=innerWidth)return;
+  const h=ensureHint();h.style.opacity='.78';clearTimeout(showPortraitHint.t);showPortraitHint.t=setTimeout(()=>h.style.opacity='0',1800);
+}
+async function preferLandscape(){
+  // Best effort only. Safari may reject fullscreen/orientation locking and that is fine.
+  try{await screen.orientation?.lock?.('landscape')}catch{}
+}
+addEventListener('orientationchange',()=>setTimeout(()=>{if(innerHeight>innerWidth)showPortraitHint()},140),{passive:true});
+document.querySelector('.start')?.addEventListener('click',()=>{if(innerWidth>=innerHeight)preferLandscape();else showPortraitHint()});
