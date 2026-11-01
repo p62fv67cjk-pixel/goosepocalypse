@@ -1,0 +1,20 @@
+// Geese With Teeth original adaptive soundtrack.
+// Procedural WebAudio only: no samples or borrowed melodies.
+const AudioCtx=window.AudioContext||window.webkitAudioContext;
+let ctx,master,musicBus,noiseBuffer,timer=null,step=0,running=false,boss=false;
+const BPM=118,beat=60/BPM;
+function ensure(){if(ctx)return;ctx=new AudioCtx();master=ctx.createGain();master.gain.value=.52;master.connect(ctx.destination);musicBus=ctx.createGain();musicBus.gain.value=.18;musicBus.connect(master);noiseBuffer=ctx.createBuffer(1,ctx.sampleRate*.25,ctx.sampleRate);const d=noiseBuffer.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+function osc(freq,when,dur,type='sawtooth',gain=.05,detune=0){const o=ctx.createOscillator(),g=ctx.createGain(),f=ctx.createBiquadFilter();o.type=type;o.frequency.value=freq;o.detune.value=detune;f.type='lowpass';f.frequency.value=boss?1250:900;g.gain.setValueAtTime(.0001,when);g.gain.exponentialRampToValueAtTime(gain,when+.008);g.gain.exponentialRampToValueAtTime(.0001,when+dur);o.connect(f);f.connect(g);g.connect(musicBus);o.start(when);o.stop(when+dur+.02)}
+function kick(when){osc(52,when,.12,'sine',.22);osc(92,when,.045,'square',.045)}
+function snare(when){const s=ctx.createBufferSource(),g=ctx.createGain(),f=ctx.createBiquadFilter();s.buffer=noiseBuffer;f.type='highpass';f.frequency.value=900;g.gain.setValueAtTime(.12,when);g.gain.exponentialRampToValueAtTime(.0001,when+.09);s.connect(f);f.connect(g);g.connect(musicBus);s.start(when);s.stop(when+.1)}
+function hat(when){const s=ctx.createBufferSource(),g=ctx.createGain(),f=ctx.createBiquadFilter();s.buffer=noiseBuffer;f.type='highpass';f.frequency.value=5200;g.gain.setValueAtTime(.025,when);g.gain.exponentialRampToValueAtTime(.0001,when+.035);s.connect(f);f.connect(g);g.connect(musicBus);s.start(when);s.stop(when+.04)}
+// Original four-note tritone-heavy riff, intentionally unrelated to any TV theme.
+const riff=[55,55,65.41,58.27,55,73.42,65.41,49];
+function tick(){if(!running||!ctx)return;const now=ctx.currentTime+.03,n=riff[step%riff.length],eighth=beat/2;kick(now);if(step%2)snare(now);hat(now+eighth*.5);osc(n,now,eighth*.82,'sawtooth',boss?.095:.065,-7);osc(n,now,eighth*.82,'square',boss?.055:.035,7);osc(n/2,now,eighth*.9,'sawtooth',.045);if(boss&&step%4===3)osc(n*Math.pow(2,6/12),now,eighth*.7,'sawtooth',.04);step++;timer=setTimeout(tick,eighth*1000)}
+function start(){ensure();ctx.resume();if(running)return;running=true;tick();button.textContent='♫ ON'}
+function stop(){running=false;clearTimeout(timer);timer=null;if(button)button.textContent='♫ OFF'}
+const button=document.createElement('button');button.id='musicToggle';button.textContent='♫ OFF';button.setAttribute('aria-label','Toggle music');Object.assign(button.style,{position:'fixed',right:'12px',top:'calc(env(safe-area-inset-top) + 115px)',zIndex:'6',width:'54px',height:'34px',borderRadius:'18px',border:'1px solid #ffffff88',background:'#111b',color:'#fff',fontWeight:'900',fontSize:'10px'});document.body.appendChild(button);button.addEventListener('click',e=>{e.stopPropagation();running?stop():start()});
+// iOS requires a user gesture before WebAudio can begin. Starting the game supplies it.
+document.querySelector('.start')?.addEventListener('click',()=>start(),{passive:true});
+const wave=document.querySelector('#wave');if(wave)new MutationObserver(()=>{const n=parseInt(wave.textContent.match(/\d+/)?.[0]||'1',10);boss=n%5===0;if(musicBus&&ctx){musicBus.gain.cancelScheduledValues(ctx.currentTime);musicBus.gain.linearRampToValueAtTime(boss?.24:.18,ctx.currentTime+.25)}}).observe(wave,{childList:true,characterData:true,subtree:true});
+document.addEventListener('visibilitychange',()=>{if(!ctx)return;document.hidden?ctx.suspend():running&&ctx.resume()});
