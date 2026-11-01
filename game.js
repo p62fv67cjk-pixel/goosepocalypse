@@ -9,7 +9,6 @@ const recordedReload=new Audio(new URL("./gun-cocking-04.wav",import.meta.url).h
 recordedGunshot.preload="auto";recordedReload.preload="auto";
 const footGrass=new Audio("./footsteps-grass.mp3"),footGravel=new Audio("./footsteps-gravel.mp3"),footRun=new Audio("./footsteps-run.mp3");
 [footGrass,footGravel,footRun].forEach(a=>{a.preload="auto";a.volume=.9});
-let footToggle=0;
 function playFoot(a,volume=.9){try{a.pause();a.currentTime=0;a.volume=volume;const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
 let gunBuffer=null,reloadBuffer=null,audioLoadPromise=null;
 function loadRecordedAudio(){
