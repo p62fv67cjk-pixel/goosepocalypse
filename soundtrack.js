@@ -1,5 +1,5 @@
 import './landscape.js';
-import './effects.js?v=20261102-1';
+import './effects.js?v=20261102-2';
 
 // Live cinematic character-select artwork uploaded by the player.
 const menu=document.querySelector('#menu');
