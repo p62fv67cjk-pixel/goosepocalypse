@@ -75,14 +75,20 @@ if(movePad){
 }
 
 // game.js stores its camera-look drag as a boolean and only clears it on pointerup. On iPhone,
-// an interrupted gesture can therefore leave the camera permanently dragging. Capture the look
-// pointer and convert cancellation/lost-capture into the pointerup game.js already understands.
+// an interrupted gesture can therefore leave the camera permanently dragging. Keep strict
+// one-finger ownership just like the joystick: a second look touch must never steal the pointer,
+// otherwise releasing the first finger can leave game.js drag=true with no valid owner.
 if(gameCanvas){
   gameCanvas.addEventListener('pointerdown',e=>{
-    if(e.pointerType==='touch'||e.pointerType==='pen'){
-      activeLookPointer=e.pointerId;
-      try{gameCanvas.setPointerCapture(e.pointerId)}catch{}
+    if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
+    if(activeLookPointer!==null&&activeLookPointer!==e.pointerId){
+      // game.js receives pointerdown after this capture listener and would overwrite lx/ly for
+      // the active drag. Stop the extra touch before it reaches that handler.
+      e.stopImmediatePropagation();
+      return;
     }
+    activeLookPointer=e.pointerId;
+    try{gameCanvas.setPointerCapture(e.pointerId)}catch{}
   },{capture:true});
   const endLook=e=>{
     if(activeLookPointer===null||e.pointerId!==activeLookPointer)return;
