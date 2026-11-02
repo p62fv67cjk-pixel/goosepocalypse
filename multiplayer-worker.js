@@ -58,7 +58,7 @@ export class GooseRoom {
   }
   publicPlayer(p){return {slot:p.slot,character:p.character,x:p.x,z:p.z,hp:p.hp,downed:p.downed}}
   broadcast(msg,except){for(const p of this.players.values())if(p.slot!==except)json(p.ws,msg)}
-  cancelRevivesBy(slot){for(const target of this.players.values())if(target.revive?.by===slot){target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot,reason:'reviver_left'})}}
+  cancelRevivesBy(slot,reason='reviver_left'){for(const target of this.players.values())if(target.revive?.by===slot){target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot,reason})}}
   cancelRevive(target,reason='cancelled'){if(!target?.revive)return;target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot,reason})}
   validateRevive(target){
     if(!target?.revive)return false;
@@ -124,7 +124,7 @@ export class GooseRoom {
       const amount=Number(m.amount);if(!Number.isFinite(amount)||amount<=0||amount>MAX_DAMAGE_PER_HIT)return;
       const now=Date.now();if(now-p.lastDamage<DAMAGE_COOLDOWN_MS)return;
       p.lastDamage=now;commitSeq(p,m.t,m.seq);p.hp=Math.max(0,p.hp-amount);
-      if(p.hp===0){p.downed=true;this.cancelRevivesBy(p.slot)}
+      if(p.hp===0){p.downed=true;this.cancelRevivesBy(p.slot,'reviver_downed')}
       const update={t:'health',slot:p.slot,hp:p.hp,downed:p.downed};
       this.broadcast(update);json(p.ws,update);return;
     }
