@@ -24,13 +24,13 @@ function safeRoomId(value){return typeof value==='string'&&/^[A-Za-z0-9_-]{16,64
 function randomRoomId(){const b=new Uint8Array(18);crypto.getRandomValues(b);return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function messageBytes(value){return typeof value==='string'?encoder.encode(value).byteLength:Infinity}
 function seqChannel(type){return type==='input'?'input':type==='state'?'state':'action'}
-function isFreshSeq(p,type,seq){const channel=seqChannel(type);return Number.isSafeInteger(seq)&&seq>(p.seq[channel]??-1)}
+function isFreshSeq(p,type,seq){const channel=seqChannel(type);return Number.isSafeInteger(seq)&&seq>=0&&seq>(p.seq[channel]??-1)}
 function commitSeq(p,type,seq){p.seq[seqChannel(type)]=seq}
 
 export class GooseRoom {
   constructor(state){this.state=state;this.players=new Map();this.seed=crypto.getRandomValues(new Uint32Array(1))[0];this.wave=1;this.score=0;this.tick=0}
   async fetch(request){
-    if(request.headers.get('Upgrade')!=='websocket')return new Response('WebSocket required',{status:426});
+    if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return new Response('WebSocket required',{status:426});
     if(this.players.size>=MAX_PLAYERS)return new Response('Room full',{status:409});
     const pair=new WebSocketPair(),client=pair[0],server=pair[1];server.accept();
     const slot=this.players.has('p1')?'p2':'p1';
@@ -48,12 +48,17 @@ export class GooseRoom {
   }
   publicPlayer(p){return {slot:p.slot,character:p.character,x:p.x,z:p.z,hp:p.hp,downed:p.downed}}
   broadcast(msg,except){for(const p of this.players.values())if(p.slot!==except)json(p.ws,msg)}
-  cancelRevivesBy(slot){for(const target of this.players.values())if(target.revive?.by===slot){target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot})}}
-  cancelRevive(target){if(!target?.revive)return;target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot})}
+  cancelRevivesBy(slot){for(const target of this.players.values())if(target.revive?.by===slot){target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot,reason:'reviver_left'})}}
+  cancelRevive(target,reason='cancelled'){if(!target?.revive)return;target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot,reason})}
   validateRevive(target){
-    if(!target?.revive||!target.downed)return false;
+    if(!target?.revive)return false;
+    // Never leave a stale revive lock behind if another authoritative system changes the target
+    // out of the downed state. This matters once server-side damage/respawn is wired in.
+    if(!target.downed){this.cancelRevive(target,'target_recovered');return false}
     const reviver=this.players.get(target.revive.by);
-    if(!reviver||reviver.downed||Math.hypot(reviver.x-target.x,reviver.z-target.z)>REVIVE_RADIUS){this.cancelRevive(target);return false}
+    if(!reviver){this.cancelRevive(target,'reviver_left');return false}
+    if(reviver.downed){this.cancelRevive(target,'reviver_downed');return false}
+    if(Math.hypot(reviver.x-target.x,reviver.z-target.z)>REVIVE_RADIUS){this.cancelRevive(target,'out_of_range');return false}
     return true;
   }
   scheduleRevive(target){
@@ -68,7 +73,7 @@ export class GooseRoom {
   onMessage(p,event){
     if(messageBytes(event.data)>MAX_MESSAGE_BYTES)return;
     let m;try{m=JSON.parse(event.data)}catch{return}
-    if(!m||typeof m!=='object'||typeof m.t!=='string'||!isFreshSeq(p,m.t,m.seq))return;
+    if(!m||typeof m!=='object'||Array.isArray(m)||typeof m.t!=='string'||!isFreshSeq(p,m.t,m.seq))return;
 
     // Only consume a sequence number after a packet is accepted. Each independent stream also
     // owns its sequence cursor, preventing state/input traffic from starving one another.
@@ -97,7 +102,7 @@ export class GooseRoom {
       commitSeq(p,m.t,m.seq);target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
     }
     if(m.t==='revive_cancel'){
-      const target=this.players.get(m.target);if(target?.revive?.by===p.slot){commitSeq(p,m.t,m.seq);this.cancelRevive(target)}
+      const target=this.players.get(m.target);if(target?.revive?.by===p.slot){commitSeq(p,m.t,m.seq);this.cancelRevive(target,'reviver_cancelled')}
     }
   }
 }
@@ -111,7 +116,7 @@ export default {
     // this endpoint contains no account data, so a public creation endpoint is intentional.
     if(url.pathname==='/room'&&request.method==='OPTIONS')return new Response(null,{status:204,headers:ROOM_API_HEADERS});
     if(url.pathname==='/room'&&request.method==='POST')return Response.json({room:randomRoomId()},{headers:ROOM_API_HEADERS});
-    if(url.pathname.startsWith('/room/')&&request.headers.get('Upgrade')==='websocket'){
+    if(url.pathname.startsWith('/room/')&&request.headers.get('Upgrade')?.toLowerCase()==='websocket'){
       const room=url.pathname.slice(6);if(!safeRoomId(room))return new Response('Invalid room',{status:400});
       const id=env.GOOSE_ROOMS.idFromName(room);return env.GOOSE_ROOMS.get(id).fetch(request);
     }
