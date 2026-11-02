@@ -42,7 +42,16 @@ export class GooseRoom {
     const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,hasState:false,character,x:0,z:0,hp:100,downed:false,revive:null};
     this.players.set(slot,p);
     server.addEventListener('message',e=>this.onMessage(p,e));
-    const close=()=>{if(!this.players.has(slot))return;this.cancelRevivesBy(slot);this.players.delete(slot);this.broadcast({t:'peer_left',slot})};
+    const close=()=>{
+      if(!this.players.has(slot))return;
+      // A disconnecting player can be either the rescuer or the downed target.
+      // Clear both directions before deletion so a pending timer cannot later
+      // complete a revive for a player that has already left the room.
+      this.cancelRevivesBy(slot);
+      if(p.revive)this.cancelRevive(p,'target_left');
+      this.players.delete(slot);
+      this.broadcast({t:'peer_left',slot});
+    };
     server.addEventListener('close',close);server.addEventListener('error',close);
     json(server,{t:'welcome',slot,seed:this.seed,wave:this.wave,score:this.score,players:[...this.players.values()].map(this.publicPlayer)});
     this.broadcast({t:'peer_joined',player:this.publicPlayer(p)},slot);
