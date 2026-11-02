@@ -47,10 +47,15 @@ jumpBtn?.addEventListener('pointerdown',()=>{if(jumping||!gameActive())return;ju
 // so a low-frame-rate iPhone can stay airborne longer than the ideal ~967 ms. Keeping the same
 // simulated gravity prevents footsteps from restarting before the player actually lands.
 function watchLanding(now){
- if(jumping){
+ if(jumping&&gameActive()){
+  // Pause/background time must not advance the mirrored jump. game.js also stops integrating
+  // physics while paused and requestAnimationFrame is suspended while Safari is backgrounded.
   const dt=Math.min(.035,Math.max(0,(now-jumpFrameTime)/1000));jumpFrameTime=now;
   jumpVY-=12*dt;jumpY+=jumpVY*dt;
   if(jumpY<=0&&jumpVY<0){jumpY=0;jumpVY=0;jumping=false;landingImpact();syncMovement()}
+ }else if(jumping){
+  // Rebase the clock while paused so resume cannot consume hidden wall-clock time.
+  jumpFrameTime=now;
  }
  requestAnimationFrame(watchLanding)
 }requestAnimationFrame(watchLanding);
@@ -62,9 +67,11 @@ const health=document.querySelector('#health');if(health){const read=()=>{const 
 function demonicHonk(){const c=ensureCtx();if(!c)return;const t=c.currentTime,master=c.createGain(),lp=c.createBiquadFilter(),shaper=c.createWaveShaper();master.gain.setValueAtTime(.0001,t);master.gain.exponentialRampToValueAtTime(.16,t+.055);master.gain.exponentialRampToValueAtTime(.0001,t+1.05);lp.type='lowpass';lp.frequency.setValueAtTime(620,t);lp.frequency.exponentialRampToValueAtTime(180,t+1.05);const curve=new Float32Array(1024);for(let i=0;i<curve.length;i++){const x=i*2/(curve.length-1)-1;curve[i]=(1.8*x)/(1+1.25*Math.abs(x))}shaper.curve=curve;for(const[freq,det]of[[91,-8],[118,5],[147,-3]]){const o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*.62,t+.85);o.detune.value=det;o.connect(shaper);o.start(t);o.stop(t+1.08)}shaper.connect(lp);lp.connect(master);master.connect(c.destination)}
 function geeseAlive(){const e=document.querySelector('#geeseLeft');const n=Number((e?.textContent.match(/\d+/)||[0])[0]);return n>0&&gameActive()}
 function scheduleHonk(){setTimeout(()=>{if(geeseAlive()&&Math.random()<.78)demonicHonk();scheduleHonk()},3600+Math.random()*4700)}scheduleHonk();
-function suspendMovement(){movePointer=null;moving=false;sprinting=false;jumping=false;jumpY=0;jumpVY=0;stopTrack(true);try{gravel.pause();gravel.currentTime=0}catch{}}
+function suspendMovement({resetJump=false}={}){movePointer=null;moving=false;sprinting=false;stopTrack(true);try{gravel.pause();gravel.currentTime=0}catch{}if(resetJump){jumping=false;jumpY=0;jumpVY=0;jumpFrameTime=0}}
 // Pause/menu lifecycle is part of the audio state machine: no ghost footsteps under overlays.
+// Preserve airborne state across pause/background interruptions because game.js preserves the
+// physical jump too. Only a new run is allowed to discard that state.
 document.querySelector('#pause')?.addEventListener('click',()=>{gamePaused=true;suspendMovement()},{capture:true});
-document.querySelector('.resume')?.addEventListener('click',()=>{gamePaused=false;syncMovement()},{capture:true});
-document.querySelector('.start')?.addEventListener('click',()=>{gamePaused=false;suspendMovement()},{capture:true});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendMovement()});window.addEventListener('pagehide',suspendMovement);window.addEventListener('blur',suspendMovement);
+document.querySelector('.resume')?.addEventListener('click',()=>{gamePaused=false;if(jumping)jumpFrameTime=performance.now();syncMovement()},{capture:true});
+document.querySelector('.start')?.addEventListener('click',()=>{gamePaused=false;suspendMovement({resetJump:true})},{capture:true});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendMovement();else if(jumping)jumpFrameTime=performance.now()});window.addEventListener('pagehide',()=>suspendMovement());window.addEventListener('blur',()=>suspendMovement());
