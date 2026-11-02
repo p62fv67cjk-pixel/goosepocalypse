@@ -5,6 +5,7 @@
 const sprintButton=document.querySelector('#sprint');
 const movePad=document.querySelector('#move');
 const gameCanvas=document.querySelector('#game');
+let activeSprintPointer=null;
 let activeMovePointer=null;
 let activeLookPointer=null;
 
@@ -14,9 +15,22 @@ function release(el,pointerId=-1){
   catch{el.dispatchEvent(new Event('pointerup',{bubbles:true}))}
 }
 
+// Sprint is a held control, so give it explicit pointer ownership. This prevents a second finger,
+// a stray pointerleave, or an interrupted Safari gesture from toggling the run state incorrectly.
 if(sprintButton){
-  for(const type of ['pointercancel','lostpointercapture','pointerleave']){
-    sprintButton.addEventListener(type,()=>release(sprintButton),{capture:true});
+  sprintButton.addEventListener('pointerdown',e=>{
+    if(activeSprintPointer!==null&&activeSprintPointer!==e.pointerId)return;
+    activeSprintPointer=e.pointerId;
+    try{sprintButton.setPointerCapture(e.pointerId)}catch{}
+  },{capture:true});
+  const endSprint=e=>{
+    if(activeSprintPointer===null||e.pointerId!==activeSprintPointer)return;
+    const id=activeSprintPointer;
+    activeSprintPointer=null;
+    if(e.type!=='pointerup')release(sprintButton,id);
+  };
+  for(const type of ['pointerup','pointercancel','lostpointercapture']){
+    sprintButton.addEventListener(type,endSprint,{capture:true});
   }
 }
 
@@ -75,10 +89,12 @@ if(gameCanvas){
 }
 
 function releaseAllControls(){
+  const sprintId=activeSprintPointer;
   const lookId=activeLookPointer;
+  activeSprintPointer=null;
   activeMovePointer=null;
   activeLookPointer=null;
-  release(sprintButton);
+  release(sprintButton,sprintId??-1);
   release(movePad);
   release(gameCanvas,lookId??-1);
 }
