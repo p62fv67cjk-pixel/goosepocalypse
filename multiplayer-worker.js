@@ -26,9 +26,6 @@ function safeRoomId(value){return typeof value==='string'&&/^[A-Za-z0-9_-]{16,64
 function randomRoomId(){const b=new Uint8Array(18);crypto.getRandomValues(b);return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function messageBytes(value){return typeof value==='string'?encoder.encode(value).byteLength:Infinity}
 function otherCharacter(character){return character==='Mummy'?'Phoenix':'Mummy'}
-// Input and interpolation state are continuous streams. Discrete actions each get their own
-// cursor too: changing character must never make a later revive packet stale merely because
-// the client uses independent counters for those actions.
 function seqChannel(type){return type==='input'?'input':type==='state'?'state':`action:${type}`}
 function isFreshSeq(p,type,seq){const channel=seqChannel(type);return Number.isSafeInteger(seq)&&seq>=0&&seq>(p.seq[channel]??-1)}
 function commitSeq(p,type,seq){p.seq[seqChannel(type)]=seq}
@@ -40,8 +37,6 @@ export class GooseRoom {
     if(this.players.size>=MAX_PLAYERS)return new Response('Room full',{status:409});
     const pair=new WebSocketPair(),client=pair[0],server=pair[1];server.accept();
     const slot=this.players.has('p1')?'p2':'p1';
-    // Character uniqueness must also be enforced at join time. p1 may have switched to Mummy
-    // before p2 connects, so a hard-coded p2=Mummy default can otherwise create two Mummies.
     const existing=[...this.players.values()][0];
     const character=existing?otherCharacter(existing.character):(slot==='p1'?'Phoenix':'Mummy');
     const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,hasState:false,character,x:0,z:0,hp:100,downed:false,revive:null};
@@ -63,8 +58,6 @@ export class GooseRoom {
     const reviver=this.players.get(target.revive.by);
     if(!reviver){this.cancelRevive(target,'reviver_left');return false}
     if(reviver.downed){this.cancelRevive(target,'reviver_downed');return false}
-    // Never trust the default (0,0) placeholder as real proximity. Both clients must have
-    // established an accepted world position before a revive can remain valid.
     if(!reviver.hasState||!target.hasState){this.cancelRevive(target,'position_unknown');return false}
     if(Math.hypot(reviver.x-target.x,reviver.z-target.z)>REVIVE_RADIUS){this.cancelRevive(target,'out_of_range');return false}
     return true;
@@ -87,7 +80,6 @@ export class GooseRoom {
       const now=Date.now();if(now-p.lastInput<MIN_INPUT_MS)return;p.lastInput=now;commitSeq(p,m.t,m.seq);
       const move=Array.isArray(m.move)?m.move:[0,0];
       const x=clamp(move[0],-1,1),z=clamp(move[1],-1,1),mag=Math.hypot(x,z),scale=mag>1?1/mag:1;
-      // A downed player cannot keep moving, sprinting or firing through stale held controls.
       const clean=p.downed
         ?{t:'input',slot:p.slot,seq:m.seq,move:[0,0],yaw:clamp(m.yaw,-Math.PI*4,Math.PI*4),pitch:clamp(m.pitch,-1.5,1.5),sprint:false,fire:false}
         :{t:'input',slot:p.slot,seq:m.seq,move:[x*scale,z*scale],yaw:clamp(m.yaw,-Math.PI*4,Math.PI*4),pitch:clamp(m.pitch,-1.5,1.5),sprint:!!m.sprint,fire:!!m.fire};
@@ -96,14 +88,10 @@ export class GooseRoom {
     if(m.t==='state'){
       const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;
       const nextX=clamp(m.x,-105,105),nextZ=clamp(m.z,-105,105);
-      // The first state establishes the game's spawn position. After that, reject impossible
-      // teleports instead of trusting a client position that could fake proximity for revives.
       if(p.hasState){
         const elapsed=Math.max(MIN_STATE_MS,now-p.lastState)/1000;
         const allowed=MAX_STATE_SPEED*elapsed+STATE_DISTANCE_GRACE;
         if(Math.hypot(nextX-p.x,nextZ-p.z)>allowed){json(p.ws,{t:'state_rejected',reason:'movement_too_fast',x:p.x,z:p.z});return}
-        // Once downed, freeze the authoritative revive position. This prevents a client from
-        // sliding its state toward the teammate while incapacitated.
         if(p.downed&&Math.hypot(nextX-p.x,nextZ-p.z)>0.05){json(p.ws,{t:'state_rejected',reason:'downed',x:p.x,z:p.z});return}
       }
       p.lastState=now;p.hasState=true;p.x=nextX;p.z=nextZ;commitSeq(p,m.t,m.seq);
@@ -111,14 +99,16 @@ export class GooseRoom {
       this.broadcast({t:'state',slot:p.slot,seq:m.seq,x:p.x,z:p.z},p.slot);return;
     }
     if(m.t==='character'){
+      // Reject malformed/unknown character values instead of silently coercing them to Phoenix.
+      // Rejected packets do not consume the character sequence cursor, so a corrected retry works.
+      if(m.character!=='Mummy'&&m.character!=='Phoenix')return;
       commitSeq(p,m.t,m.seq);
-      const wanted=m.character==='Mummy'?'Mummy':'Phoenix',other=[...this.players.values()].find(q=>q!==p);
+      const wanted=m.character,other=[...this.players.values()].find(q=>q!==p);
       p.character=other&&other.character===wanted?otherCharacter(wanted):wanted;
       this.broadcast({t:'character',slot:p.slot,character:p.character});json(p.ws,{t:'character',slot:p.slot,character:p.character});return;
     }
     if(m.t==='revive_start'){
       const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed||target.revive)return;
-      // Do not allow two newly connected clients' placeholder coordinates to count as proximity.
       if(!p.hasState||!target.hasState)return;
       if(Math.hypot(p.x-target.x,p.z-target.z)>REVIVE_RADIUS)return;
       commitSeq(p,m.t,m.seq);target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
