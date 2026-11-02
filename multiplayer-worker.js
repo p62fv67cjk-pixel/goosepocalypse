@@ -25,6 +25,7 @@ function clamp(n,min,max){return Math.max(min,Math.min(max,Number(n)||0))}
 function safeRoomId(value){return typeof value==='string'&&/^[A-Za-z0-9_-]{16,64}$/.test(value)}
 function randomRoomId(){const b=new Uint8Array(18);crypto.getRandomValues(b);return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function messageBytes(value){return typeof value==='string'?encoder.encode(value).byteLength:Infinity}
+function otherCharacter(character){return character==='Mummy'?'Phoenix':'Mummy'}
 // Input and interpolation state are continuous streams. Discrete actions each get their own
 // cursor too: changing character must never make a later revive packet stale merely because
 // the client uses independent counters for those actions.
@@ -39,7 +40,11 @@ export class GooseRoom {
     if(this.players.size>=MAX_PLAYERS)return new Response('Room full',{status:409});
     const pair=new WebSocketPair(),client=pair[0],server=pair[1];server.accept();
     const slot=this.players.has('p1')?'p2':'p1';
-    const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,hasState:false,character:slot==='p1'?'Phoenix':'Mummy',x:0,z:0,hp:100,downed:false,revive:null};
+    // Character uniqueness must also be enforced at join time. p1 may have switched to Mummy
+    // before p2 connects, so a hard-coded p2=Mummy default can otherwise create two Mummies.
+    const existing=[...this.players.values()][0];
+    const character=existing?otherCharacter(existing.character):(slot==='p1'?'Phoenix':'Mummy');
+    const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,hasState:false,character,x:0,z:0,hp:100,downed:false,revive:null};
     this.players.set(slot,p);
     server.addEventListener('message',e=>this.onMessage(p,e));
     const close=()=>{if(!this.players.has(slot))return;this.cancelRevivesBy(slot);this.players.delete(slot);this.broadcast({t:'peer_left',slot})};
@@ -108,7 +113,7 @@ export class GooseRoom {
     if(m.t==='character'){
       commitSeq(p,m.t,m.seq);
       const wanted=m.character==='Mummy'?'Mummy':'Phoenix',other=[...this.players.values()].find(q=>q!==p);
-      p.character=other&&other.character===wanted?(wanted==='Mummy'?'Phoenix':'Mummy'):wanted;
+      p.character=other&&other.character===wanted?otherCharacter(wanted):wanted;
       this.broadcast({t:'character',slot:p.slot,character:p.character});json(p.ws,{t:'character',slot:p.slot,character:p.character});return;
     }
     if(m.t==='revive_start'){
