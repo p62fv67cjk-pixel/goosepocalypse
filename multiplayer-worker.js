@@ -3,15 +3,19 @@
 const MAX_PLAYERS=2;
 const MAX_MESSAGE_BYTES=2048;
 const INPUT_HZ=20;
+const STATE_HZ=20;
 const MIN_INPUT_MS=1000/INPUT_HZ;
+const MIN_STATE_MS=1000/STATE_HZ;
 const REVIVE_RADIUS=2.4;
 const REVIVE_MS=3000;
 const REVIVE_HP=35;
+const encoder=new TextEncoder();
 
 function json(ws,value){try{ws.send(JSON.stringify(value))}catch{}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,Number(n)||0))}
 function safeRoomId(value){return typeof value==='string'&&/^[A-Za-z0-9_-]{16,64}$/.test(value)}
 function randomRoomId(){const b=new Uint8Array(18);crypto.getRandomValues(b);return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function messageBytes(value){return typeof value==='string'?encoder.encode(value).byteLength:Infinity}
 
 export class GooseRoom {
   constructor(state){this.state=state;this.players=new Map();this.seed=crypto.getRandomValues(new Uint32Array(1))[0];this.wave=1;this.score=0;this.tick=0}
@@ -20,7 +24,7 @@ export class GooseRoom {
     if(this.players.size>=MAX_PLAYERS)return new Response('Room full',{status:409});
     const pair=new WebSocketPair(),client=pair[0],server=pair[1];server.accept();
     const slot=this.players.has('p1')?'p2':'p1';
-    const p={slot,ws:server,seq:-1,lastInput:0,character:slot==='p1'?'Phoenix':'Mummy',x:0,z:0,hp:100,downed:false,revive:null};
+    const p={slot,ws:server,seq:-1,lastInput:0,lastState:0,character:slot==='p1'?'Phoenix':'Mummy',x:0,z:0,hp:100,downed:false,revive:null};
     this.players.set(slot,p);
     server.addEventListener('message',e=>this.onMessage(p,e));
     const close=()=>{if(!this.players.has(slot))return;this.cancelRevivesBy(slot);this.players.delete(slot);this.broadcast({t:'peer_left',slot})};
@@ -49,7 +53,9 @@ export class GooseRoom {
     },REVIVE_MS);
   }
   onMessage(p,event){
-    if(typeof event.data!=='string'||event.data.length>MAX_MESSAGE_BYTES)return;
+    // String.length counts UTF-16 code units, not network bytes. Enforce the advertised
+    // 2 KiB cap on encoded UTF-8 so multibyte payloads cannot bypass it.
+    if(messageBytes(event.data)>MAX_MESSAGE_BYTES)return;
     let m;try{m=JSON.parse(event.data)}catch{return}
     if(!m||typeof m!=='object'||!Number.isSafeInteger(m.seq)||m.seq<=p.seq)return;p.seq=m.seq;
     if(m.t==='input'){
@@ -60,6 +66,9 @@ export class GooseRoom {
       this.broadcast(clean,p.slot);return;
     }
     if(m.t==='state'){
+      // State packets are interpolation hints, not authority. Rate-limit them separately
+      // so a client cannot flood its peer/room while still obeying the input limit.
+      const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;p.lastState=now;
       // Position is bounded here for interpolation only. HP/score/kills are deliberately not client writable.
       p.x=clamp(m.x,-105,105);p.z=clamp(m.z,-105,105);
       for(const target of this.players.values())if(target.revive&&(target===p||target.revive.by===p.slot))this.validateRevive(target);
