@@ -9,6 +9,8 @@ const MIN_STATE_MS=1000/STATE_HZ;
 const REVIVE_RADIUS=2.4;
 const REVIVE_MS=3000;
 const REVIVE_HP=35;
+const MAX_STATE_SPEED=18; // generous sprint/network ceiling in world units per second
+const STATE_DISTANCE_GRACE=1.5;
 const encoder=new TextEncoder();
 const ROOM_API_HEADERS={
   'access-control-allow-origin':'*',
@@ -23,7 +25,10 @@ function clamp(n,min,max){return Math.max(min,Math.min(max,Number(n)||0))}
 function safeRoomId(value){return typeof value==='string'&&/^[A-Za-z0-9_-]{16,64}$/.test(value)}
 function randomRoomId(){const b=new Uint8Array(18);crypto.getRandomValues(b);return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function messageBytes(value){return typeof value==='string'?encoder.encode(value).byteLength:Infinity}
-function seqChannel(type){return type==='input'?'input':type==='state'?'state':'action'}
+// Input and interpolation state are continuous streams. Discrete actions each get their own
+// cursor too: changing character must never make a later revive packet stale merely because
+// the client uses independent counters for those actions.
+function seqChannel(type){return type==='input'?'input':type==='state'?'state':`action:${type}`}
 function isFreshSeq(p,type,seq){const channel=seqChannel(type);return Number.isSafeInteger(seq)&&seq>=0&&seq>(p.seq[channel]??-1)}
 function commitSeq(p,type,seq){p.seq[seqChannel(type)]=seq}
 
@@ -34,10 +39,7 @@ export class GooseRoom {
     if(this.players.size>=MAX_PLAYERS)return new Response('Room full',{status:409});
     const pair=new WebSocketPair(),client=pair[0],server=pair[1];server.accept();
     const slot=this.players.has('p1')?'p2':'p1';
-    // Input, interpolation state and discrete actions are independent streams. Keep a sequence
-    // cursor per stream so harmless WebSocket scheduling/reordering cannot make a newer state
-    // packet invalidate an otherwise-valid movement packet (or vice versa).
-    const p={slot,ws:server,seq:{input:-1,state:-1,action:-1},lastInput:0,lastState:0,character:slot==='p1'?'Phoenix':'Mummy',x:0,z:0,hp:100,downed:false,revive:null};
+    const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,hasState:false,character:slot==='p1'?'Phoenix':'Mummy',x:0,z:0,hp:100,downed:false,revive:null};
     this.players.set(slot,p);
     server.addEventListener('message',e=>this.onMessage(p,e));
     const close=()=>{if(!this.players.has(slot))return;this.cancelRevivesBy(slot);this.players.delete(slot);this.broadcast({t:'peer_left',slot})};
@@ -52,8 +54,6 @@ export class GooseRoom {
   cancelRevive(target,reason='cancelled'){if(!target?.revive)return;target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot,reason})}
   validateRevive(target){
     if(!target?.revive)return false;
-    // Never leave a stale revive lock behind if another authoritative system changes the target
-    // out of the downed state. This matters once server-side damage/respawn is wired in.
     if(!target.downed){this.cancelRevive(target,'target_recovered');return false}
     const reviver=this.players.get(target.revive.by);
     if(!reviver){this.cancelRevive(target,'reviver_left');return false}
@@ -75,8 +75,6 @@ export class GooseRoom {
     let m;try{m=JSON.parse(event.data)}catch{return}
     if(!m||typeof m!=='object'||Array.isArray(m)||typeof m.t!=='string'||!isFreshSeq(p,m.t,m.seq))return;
 
-    // Only consume a sequence number after a packet is accepted. Each independent stream also
-    // owns its sequence cursor, preventing state/input traffic from starving one another.
     if(m.t==='input'){
       const now=Date.now();if(now-p.lastInput<MIN_INPUT_MS)return;p.lastInput=now;commitSeq(p,m.t,m.seq);
       const move=Array.isArray(m.move)?m.move:[0,0];
@@ -85,8 +83,16 @@ export class GooseRoom {
       this.broadcast(clean,p.slot);return;
     }
     if(m.t==='state'){
-      const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;p.lastState=now;commitSeq(p,m.t,m.seq);
-      p.x=clamp(m.x,-105,105);p.z=clamp(m.z,-105,105);
+      const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;
+      const nextX=clamp(m.x,-105,105),nextZ=clamp(m.z,-105,105);
+      // The first state establishes the game's spawn position. After that, reject impossible
+      // teleports instead of trusting a client position that could fake proximity for revives.
+      if(p.hasState){
+        const elapsed=Math.max(MIN_STATE_MS,now-p.lastState)/1000;
+        const allowed=MAX_STATE_SPEED*elapsed+STATE_DISTANCE_GRACE;
+        if(Math.hypot(nextX-p.x,nextZ-p.z)>allowed){json(p.ws,{t:'state_rejected',reason:'movement_too_fast',x:p.x,z:p.z});return}
+      }
+      p.lastState=now;p.hasState=true;p.x=nextX;p.z=nextZ;commitSeq(p,m.t,m.seq);
       for(const target of this.players.values())if(target.revive&&(target===p||target.revive.by===p.slot))this.validateRevive(target);
       this.broadcast({t:'state',slot:p.slot,seq:m.seq,x:p.x,z:p.z},p.slot);return;
     }
@@ -110,10 +116,6 @@ export class GooseRoom {
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
-    // GitHub Pages and other static hosts are cross-origin from workers.dev. Room creation must
-    // explicitly allow that browser request or fetch() succeeds at the edge but JavaScript is
-    // forbidden from reading the generated room id. Room ids are random bearer secrets, and
-    // this endpoint contains no account data, so a public creation endpoint is intentional.
     if(url.pathname==='/room'&&request.method==='OPTIONS')return new Response(null,{status:204,headers:ROOM_API_HEADERS});
     if(url.pathname==='/room'&&request.method==='POST')return Response.json({room:randomRoomId()},{headers:ROOM_API_HEADERS});
     if(url.pathname.startsWith('/room/')&&request.headers.get('Upgrade')?.toLowerCase()==='websocket'){
