@@ -36,10 +36,12 @@ if(sprintButton){
 
 if(movePad){
   movePad.addEventListener('pointerdown',e=>{
-    if(e.pointerType==='touch'||e.pointerType==='pen'){
-      activeMovePointer=e.pointerId;
-      try{movePad.setPointerCapture(e.pointerId)}catch{}
-    }
+    if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
+    // The joystick belongs to one finger until that gesture ends. Without this guard a second
+    // touch can steal activeMovePointer, leaving game.js with stale mx/my from the first finger.
+    if(activeMovePointer!==null&&activeMovePointer!==e.pointerId)return;
+    activeMovePointer=e.pointerId;
+    try{movePad.setPointerCapture(e.pointerId)}catch{}
   },{capture:true});
 
   // game.js historically ignores pointermove when e.buttons===0. iOS Safari may report exactly
@@ -59,11 +61,16 @@ if(movePad){
     }catch{}
   },{capture:true});
 
-  const clearPointer=e=>{
-    if(activeMovePointer===null||!e||e.pointerId===activeMovePointer)activeMovePointer=null;
+  const endMove=e=>{
+    if(activeMovePointer===null||e.pointerId!==activeMovePointer)return;
+    const id=activeMovePointer;
+    activeMovePointer=null;
+    // game.js already handles pointercancel, but it has no lostpointercapture handler. Convert
+    // lost capture to pointerup so mx/my reset immediately and footsteps stop with the joystick.
+    if(e.type==='lostpointercapture')release(movePad,id);
   };
   for(const type of ['pointerup','pointercancel','lostpointercapture']){
-    movePad.addEventListener(type,clearPointer,{capture:true});
+    movePad.addEventListener(type,endMove,{capture:true});
   }
 }
 
@@ -90,12 +97,13 @@ if(gameCanvas){
 
 function releaseAllControls(){
   const sprintId=activeSprintPointer;
+  const moveId=activeMovePointer;
   const lookId=activeLookPointer;
   activeSprintPointer=null;
   activeMovePointer=null;
   activeLookPointer=null;
   release(sprintButton,sprintId??-1);
-  release(movePad);
+  release(movePad,moveId??-1);
   release(gameCanvas,lookId??-1);
 }
 
