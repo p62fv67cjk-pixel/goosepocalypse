@@ -1,0 +1,12 @@
+name = "goosepocalypse-relay"
+main = "multiplayer-worker.js"
+compatibility_date = "2026-11-01"
+
+[durable_objects]
+bindings = [
+  { name = "GOOSE_ROOMS", class_name = "GooseRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GooseRoom"]
