@@ -6,6 +6,7 @@ const INPUT_HZ=20;
 const STATE_HZ=20;
 const MIN_INPUT_MS=1000/INPUT_HZ;
 const MIN_STATE_MS=1000/STATE_HZ;
+const STATE_STALE_MS=1000;
 const REVIVE_RADIUS=2.4;
 const REVIVE_MS=3000;
 const REVIVE_HP=35;
@@ -60,13 +61,15 @@ export class GooseRoom {
   broadcast(msg,except){for(const p of this.players.values())if(p.slot!==except)json(p.ws,msg)}
   cancelRevivesBy(slot,reason='reviver_left'){for(const target of this.players.values())if(target.revive?.by===slot){target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot,reason})}}
   cancelRevive(target,reason='cancelled'){if(!target?.revive)return;target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot,reason})}
+  reviverStateFresh(p,now=Date.now()){return !!p?.hasState&&now-p.lastState<=STATE_STALE_MS}
   validateRevive(target){
     if(!target?.revive)return false;
     if(!target.downed){this.cancelRevive(target,'target_recovered');return false}
     const reviver=this.players.get(target.revive.by);
     if(!reviver){this.cancelRevive(target,'reviver_left');return false}
     if(reviver.downed){this.cancelRevive(target,'reviver_downed');return false}
-    if(!reviver.hasState||!target.hasState){this.cancelRevive(target,'position_unknown');return false}
+    if(!target.hasState){this.cancelRevive(target,'position_unknown');return false}
+    if(!this.reviverStateFresh(reviver)){this.cancelRevive(target,'reviver_state_stale');return false}
     if(Math.hypot(reviver.x-target.x,reviver.z-target.z)>REVIVE_RADIUS){this.cancelRevive(target,'out_of_range');return false}
     return true;
   }
@@ -95,8 +98,6 @@ export class GooseRoom {
     }
     if(m.t==='state'){
       const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;
-      // Reject malformed coordinates rather than silently coercing them to 0,0.
-      // A bad first packet must never establish a fake position usable by revive proximity.
       const rawX=Number(m.x),rawZ=Number(m.z);
       if(!Number.isFinite(rawX)||!Number.isFinite(rawZ)){json(p.ws,{t:'state_rejected',reason:'invalid_position',x:p.x,z:p.z});return}
       const nextX=clamp(rawX,-105,105),nextZ=clamp(rawZ,-105,105);
@@ -118,8 +119,6 @@ export class GooseRoom {
       this.broadcast({t:'character',slot:p.slot,character:p.character});json(p.ws,{t:'character',slot:p.slot,character:p.character});return;
     }
     if(m.t==='damage'){
-      // The browser reports damage to itself; the relay owns HP/downed transitions.
-      // This keeps revive state coherent without pretending the relay simulates goose AI.
       if(p.downed)return;
       const amount=Number(m.amount);if(!Number.isFinite(amount)||amount<=0||amount>MAX_DAMAGE_PER_HIT)return;
       const now=Date.now();if(now-p.lastDamage<DAMAGE_COOLDOWN_MS)return;
@@ -130,7 +129,7 @@ export class GooseRoom {
     }
     if(m.t==='revive_start'){
       const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed||target.revive)return;
-      if(!p.hasState||!target.hasState)return;
+      if(!target.hasState||!this.reviverStateFresh(p))return;
       if(Math.hypot(p.x-target.x,p.z-target.z)>REVIVE_RADIUS)return;
       commitSeq(p,m.t,m.seq);target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
     }
