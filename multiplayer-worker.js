@@ -10,6 +10,13 @@ const REVIVE_RADIUS=2.4;
 const REVIVE_MS=3000;
 const REVIVE_HP=35;
 const encoder=new TextEncoder();
+const ROOM_API_HEADERS={
+  'access-control-allow-origin':'*',
+  'access-control-allow-methods':'POST, OPTIONS',
+  'access-control-allow-headers':'content-type',
+  'cache-control':'no-store',
+  'vary':'Origin'
+};
 
 function json(ws,value){try{ws.send(JSON.stringify(value))}catch{}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,Number(n)||0))}
@@ -98,7 +105,12 @@ export class GooseRoom {
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
-    if(url.pathname==='/room'&&request.method==='POST')return Response.json({room:randomRoomId()},{headers:{'cache-control':'no-store'}});
+    // GitHub Pages and other static hosts are cross-origin from workers.dev. Room creation must
+    // explicitly allow that browser request or fetch() succeeds at the edge but JavaScript is
+    // forbidden from reading the generated room id. Room ids are random bearer secrets, and
+    // this endpoint contains no account data, so a public creation endpoint is intentional.
+    if(url.pathname==='/room'&&request.method==='OPTIONS')return new Response(null,{status:204,headers:ROOM_API_HEADERS});
+    if(url.pathname==='/room'&&request.method==='POST')return Response.json({room:randomRoomId()},{headers:ROOM_API_HEADERS});
     if(url.pathname.startsWith('/room/')&&request.headers.get('Upgrade')==='websocket'){
       const room=url.pathname.slice(6);if(!safeRoomId(room))return new Response('Invalid room',{status:400});
       const id=env.GOOSE_ROOMS.idFromName(room);return env.GOOSE_ROOMS.get(id).fetch(request);
