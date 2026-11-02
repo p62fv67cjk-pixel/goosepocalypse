@@ -53,28 +53,29 @@ export class GooseRoom {
     },REVIVE_MS);
   }
   onMessage(p,event){
-    // String.length counts UTF-16 code units, not network bytes. Enforce the advertised
-    // 2 KiB cap on encoded UTF-8 so multibyte payloads cannot bypass it.
     if(messageBytes(event.data)>MAX_MESSAGE_BYTES)return;
     let m;try{m=JSON.parse(event.data)}catch{return}
-    if(!m||typeof m!=='object'||!Number.isSafeInteger(m.seq)||m.seq<=p.seq)return;p.seq=m.seq;
+    if(!m||typeof m!=='object'||!Number.isSafeInteger(m.seq)||m.seq<=p.seq)return;
+
+    // Only consume a sequence number after a packet is accepted. Previously a packet that
+    // arrived inside a rate-limit window advanced p.seq before being discarded. A noisy
+    // client could therefore make its next legitimate input/state look stale and starve its
+    // own controls. Each accepted message type now commits its sequence at the point it is used.
     if(m.t==='input'){
-      const now=Date.now();if(now-p.lastInput<MIN_INPUT_MS)return;p.lastInput=now;
+      const now=Date.now();if(now-p.lastInput<MIN_INPUT_MS)return;p.lastInput=now;p.seq=m.seq;
       const move=Array.isArray(m.move)?m.move:[0,0];
       const x=clamp(move[0],-1,1),z=clamp(move[1],-1,1),mag=Math.hypot(x,z),scale=mag>1?1/mag:1;
       const clean={t:'input',slot:p.slot,seq:p.seq,move:[x*scale,z*scale],yaw:clamp(m.yaw,-Math.PI*4,Math.PI*4),pitch:clamp(m.pitch,-1.5,1.5),sprint:!!m.sprint,fire:!!m.fire};
       this.broadcast(clean,p.slot);return;
     }
     if(m.t==='state'){
-      // State packets are interpolation hints, not authority. Rate-limit them separately
-      // so a client cannot flood its peer/room while still obeying the input limit.
-      const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;p.lastState=now;
-      // Position is bounded here for interpolation only. HP/score/kills are deliberately not client writable.
+      const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;p.lastState=now;p.seq=m.seq;
       p.x=clamp(m.x,-105,105);p.z=clamp(m.z,-105,105);
       for(const target of this.players.values())if(target.revive&&(target===p||target.revive.by===p.slot))this.validateRevive(target);
       this.broadcast({t:'state',slot:p.slot,seq:p.seq,x:p.x,z:p.z},p.slot);return;
     }
     if(m.t==='character'){
+      p.seq=m.seq;
       const wanted=m.character==='Mummy'?'Mummy':'Phoenix',other=[...this.players.values()].find(q=>q!==p);
       p.character=other&&other.character===wanted?(wanted==='Mummy'?'Phoenix':'Mummy'):wanted;
       this.broadcast({t:'character',slot:p.slot,character:p.character});json(p.ws,{t:'character',slot:p.slot,character:p.character});return;
@@ -82,10 +83,10 @@ export class GooseRoom {
     if(m.t==='revive_start'){
       const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed||target.revive)return;
       if(Math.hypot(p.x-target.x,p.z-target.z)>REVIVE_RADIUS)return;
-      target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
+      p.seq=m.seq;target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
     }
     if(m.t==='revive_cancel'){
-      const target=this.players.get(m.target);if(target?.revive?.by===p.slot)this.cancelRevive(target);
+      const target=this.players.get(m.target);if(target?.revive?.by===p.slot){p.seq=m.seq;this.cancelRevive(target)}
     }
   }
 }
