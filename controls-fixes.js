@@ -20,9 +20,6 @@ function release(el,pointerId=-1){
 if(sprintButton){
   sprintButton.addEventListener('pointerdown',e=>{
     if(activeSprintPointer!==null&&activeSprintPointer!==e.pointerId){
-      // Do not merely ignore the extra pointer here: this listener runs in capture phase, so an
-      // ordinary return would still let game.js see the second pointerdown/pointerup pair. That
-      // could release sprint while the original finger is still holding the button.
       e.stopImmediatePropagation();
       return;
     }
@@ -31,7 +28,6 @@ if(sprintButton){
   },{capture:true});
   const endSprint=e=>{
     if(activeSprintPointer===null||e.pointerId!==activeSprintPointer){
-      // Keep non-owner pointerup/cancel events away from game.js for the same reason.
       if(activeSprintPointer!==null)e.stopImmediatePropagation();
       return;
     }
@@ -47,9 +43,6 @@ if(sprintButton){
 if(movePad){
   movePad.addEventListener('pointerdown',e=>{
     if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
-    // The joystick belongs to one finger until that gesture ends. A capture-listener return alone
-    // is not enough: game.js would still receive the extra pointer and could overwrite its drag
-    // origin while activeMovePointer continued to refer to the first finger.
     if(activeMovePointer!==null&&activeMovePointer!==e.pointerId){
       e.stopImmediatePropagation();
       return;
@@ -58,10 +51,15 @@ if(movePad){
     try{movePad.setPointerCapture(e.pointerId)}catch{}
   },{capture:true});
 
-  // game.js historically ignores pointermove when e.buttons===0. iOS Safari may report exactly
-  // that while a finger is still down. Re-emit only those active-touch moves with buttons=1 so
-  // game.js updates mx/my; the managed audio controller still sees the real pointer normally.
+  // Keep every non-owner move away from game.js. Blocking only the second pointerdown is not
+  // sufficient on multi-touch Safari: later pointermove events can still target the joystick and
+  // overwrite mx/my even though the first finger owns the control. That can also start/stop or
+  // redirect movement audio incorrectly. For the owner, repair Safari's occasional buttons=0.
   movePad.addEventListener('pointermove',e=>{
+    if(activeMovePointer!==null&&e.pointerId!==activeMovePointer){
+      e.stopImmediatePropagation();
+      return;
+    }
     if(activeMovePointer!==e.pointerId||e.buttons!==0||e.__gwtSafariMove)return;
     let fixed;
     try{
@@ -77,14 +75,11 @@ if(movePad){
 
   const endMove=e=>{
     if(activeMovePointer===null||e.pointerId!==activeMovePointer){
-      // A second finger must not zero mx/my while the joystick owner is still moving.
       if(activeMovePointer!==null)e.stopImmediatePropagation();
       return;
     }
     const id=activeMovePointer;
     activeMovePointer=null;
-    // game.js already handles pointercancel, but it has no lostpointercapture handler. Convert
-    // lost capture to pointerup so mx/my reset immediately and footsteps stop with the joystick.
     if(e.type==='lostpointercapture')release(movePad,id);
   };
   for(const type of ['pointerup','pointercancel','lostpointercapture']){
@@ -100,8 +95,6 @@ if(gameCanvas){
   gameCanvas.addEventListener('pointerdown',e=>{
     if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
     if(activeLookPointer!==null&&activeLookPointer!==e.pointerId){
-      // game.js receives pointerdown after this capture listener and would overwrite lx/ly for
-      // the active drag. Stop the extra touch before it reaches that handler.
       e.stopImmediatePropagation();
       return;
     }
