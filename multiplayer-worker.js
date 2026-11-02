@@ -58,6 +58,9 @@ export class GooseRoom {
     const reviver=this.players.get(target.revive.by);
     if(!reviver){this.cancelRevive(target,'reviver_left');return false}
     if(reviver.downed){this.cancelRevive(target,'reviver_downed');return false}
+    // Never trust the default (0,0) placeholder as real proximity. Both clients must have
+    // established an accepted world position before a revive can remain valid.
+    if(!reviver.hasState||!target.hasState){this.cancelRevive(target,'position_unknown');return false}
     if(Math.hypot(reviver.x-target.x,reviver.z-target.z)>REVIVE_RADIUS){this.cancelRevive(target,'out_of_range');return false}
     return true;
   }
@@ -79,7 +82,10 @@ export class GooseRoom {
       const now=Date.now();if(now-p.lastInput<MIN_INPUT_MS)return;p.lastInput=now;commitSeq(p,m.t,m.seq);
       const move=Array.isArray(m.move)?m.move:[0,0];
       const x=clamp(move[0],-1,1),z=clamp(move[1],-1,1),mag=Math.hypot(x,z),scale=mag>1?1/mag:1;
-      const clean={t:'input',slot:p.slot,seq:m.seq,move:[x*scale,z*scale],yaw:clamp(m.yaw,-Math.PI*4,Math.PI*4),pitch:clamp(m.pitch,-1.5,1.5),sprint:!!m.sprint,fire:!!m.fire};
+      // A downed player cannot keep moving, sprinting or firing through stale held controls.
+      const clean=p.downed
+        ?{t:'input',slot:p.slot,seq:m.seq,move:[0,0],yaw:clamp(m.yaw,-Math.PI*4,Math.PI*4),pitch:clamp(m.pitch,-1.5,1.5),sprint:false,fire:false}
+        :{t:'input',slot:p.slot,seq:m.seq,move:[x*scale,z*scale],yaw:clamp(m.yaw,-Math.PI*4,Math.PI*4),pitch:clamp(m.pitch,-1.5,1.5),sprint:!!m.sprint,fire:!!m.fire};
       this.broadcast(clean,p.slot);return;
     }
     if(m.t==='state'){
@@ -91,6 +97,9 @@ export class GooseRoom {
         const elapsed=Math.max(MIN_STATE_MS,now-p.lastState)/1000;
         const allowed=MAX_STATE_SPEED*elapsed+STATE_DISTANCE_GRACE;
         if(Math.hypot(nextX-p.x,nextZ-p.z)>allowed){json(p.ws,{t:'state_rejected',reason:'movement_too_fast',x:p.x,z:p.z});return}
+        // Once downed, freeze the authoritative revive position. This prevents a client from
+        // sliding its state toward the teammate while incapacitated.
+        if(p.downed&&Math.hypot(nextX-p.x,nextZ-p.z)>0.05){json(p.ws,{t:'state_rejected',reason:'downed',x:p.x,z:p.z});return}
       }
       p.lastState=now;p.hasState=true;p.x=nextX;p.z=nextZ;commitSeq(p,m.t,m.seq);
       for(const target of this.players.values())if(target.revive&&(target===p||target.revive.by===p.slot))this.validateRevive(target);
@@ -104,6 +113,8 @@ export class GooseRoom {
     }
     if(m.t==='revive_start'){
       const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed||target.revive)return;
+      // Do not allow two newly connected clients' placeholder coordinates to count as proximity.
+      if(!p.hasState||!target.hasState)return;
       if(Math.hypot(p.x-target.x,p.z-target.z)>REVIVE_RADIUS)return;
       commitSeq(p,m.t,m.seq);target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
     }
