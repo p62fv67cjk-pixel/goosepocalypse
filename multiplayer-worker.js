@@ -43,8 +43,9 @@ export class GooseRoom {
     const started=target.revive?.started;
     setTimeout(()=>{
       if(!target.revive||target.revive.started!==started||!this.validateRevive(target))return;
+      const by=target.revive.by;
       target.revive=null;target.downed=false;target.hp=REVIVE_HP;
-      this.broadcast({t:'revived',target:target.slot,by:this.players.get(target.slot)?.slot===target.slot?undefined:undefined,hp:target.hp,player:this.publicPlayer(target)});
+      this.broadcast({t:'revived',target:target.slot,by,hp:target.hp,player:this.publicPlayer(target)});
     },REVIVE_MS);
   }
   onMessage(p,event){
