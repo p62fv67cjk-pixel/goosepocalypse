@@ -95,7 +95,11 @@ export class GooseRoom {
     }
     if(m.t==='state'){
       const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;
-      const nextX=clamp(m.x,-105,105),nextZ=clamp(m.z,-105,105);
+      // Reject malformed coordinates rather than silently coercing them to 0,0.
+      // A bad first packet must never establish a fake position usable by revive proximity.
+      const rawX=Number(m.x),rawZ=Number(m.z);
+      if(!Number.isFinite(rawX)||!Number.isFinite(rawZ)){json(p.ws,{t:'state_rejected',reason:'invalid_position',x:p.x,z:p.z});return}
+      const nextX=clamp(rawX,-105,105),nextZ=clamp(rawZ,-105,105);
       if(p.hasState){
         const elapsed=Math.max(MIN_STATE_MS,now-p.lastState)/1000;
         const allowed=MAX_STATE_SPEED*elapsed+STATE_DISTANCE_GRACE;
