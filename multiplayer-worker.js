@@ -9,6 +9,8 @@ const MIN_STATE_MS=1000/STATE_HZ;
 const REVIVE_RADIUS=2.4;
 const REVIVE_MS=3000;
 const REVIVE_HP=35;
+const DAMAGE_COOLDOWN_MS=150;
+const MAX_DAMAGE_PER_HIT=40;
 const MAX_STATE_SPEED=18; // generous sprint/network ceiling in world units per second
 const STATE_DISTANCE_GRACE=1.5;
 const encoder=new TextEncoder();
@@ -39,14 +41,11 @@ export class GooseRoom {
     const slot=this.players.has('p1')?'p2':'p1';
     const existing=[...this.players.values()][0];
     const character=existing?otherCharacter(existing.character):(slot==='p1'?'Phoenix':'Mummy');
-    const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,hasState:false,character,x:0,z:0,hp:100,downed:false,revive:null};
+    const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,lastDamage:0,hasState:false,character,x:0,z:0,hp:100,downed:false,revive:null};
     this.players.set(slot,p);
     server.addEventListener('message',e=>this.onMessage(p,e));
     const close=()=>{
       if(!this.players.has(slot))return;
-      // A disconnecting player can be either the rescuer or the downed target.
-      // Clear both directions before deletion so a pending timer cannot later
-      // complete a revive for a player that has already left the room.
       this.cancelRevivesBy(slot);
       if(p.revive)this.cancelRevive(p,'target_left');
       this.players.delete(slot);
@@ -108,13 +107,22 @@ export class GooseRoom {
       this.broadcast({t:'state',slot:p.slot,seq:m.seq,x:p.x,z:p.z},p.slot);return;
     }
     if(m.t==='character'){
-      // Reject malformed/unknown character values instead of silently coercing them to Phoenix.
-      // Rejected packets do not consume the character sequence cursor, so a corrected retry works.
       if(m.character!=='Mummy'&&m.character!=='Phoenix')return;
       commitSeq(p,m.t,m.seq);
       const wanted=m.character,other=[...this.players.values()].find(q=>q!==p);
       p.character=other&&other.character===wanted?otherCharacter(wanted):wanted;
       this.broadcast({t:'character',slot:p.slot,character:p.character});json(p.ws,{t:'character',slot:p.slot,character:p.character});return;
+    }
+    if(m.t==='damage'){
+      // The browser reports damage to itself; the relay owns HP/downed transitions.
+      // This keeps revive state coherent without pretending the relay simulates goose AI.
+      if(p.downed)return;
+      const amount=Number(m.amount);if(!Number.isFinite(amount)||amount<=0||amount>MAX_DAMAGE_PER_HIT)return;
+      const now=Date.now();if(now-p.lastDamage<DAMAGE_COOLDOWN_MS)return;
+      p.lastDamage=now;commitSeq(p,m.t,m.seq);p.hp=Math.max(0,p.hp-amount);
+      if(p.hp===0){p.downed=true;this.cancelRevivesBy(p.slot)}
+      const update={t:'health',slot:p.slot,hp:p.hp,downed:p.downed};
+      this.broadcast(update);json(p.ws,update);return;
     }
     if(m.t==='revive_start'){
       const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed||target.revive)return;
