@@ -19,12 +19,22 @@ function release(el,pointerId=-1){
 // a stray pointerleave, or an interrupted Safari gesture from toggling the run state incorrectly.
 if(sprintButton){
   sprintButton.addEventListener('pointerdown',e=>{
-    if(activeSprintPointer!==null&&activeSprintPointer!==e.pointerId)return;
+    if(activeSprintPointer!==null&&activeSprintPointer!==e.pointerId){
+      // Do not merely ignore the extra pointer here: this listener runs in capture phase, so an
+      // ordinary return would still let game.js see the second pointerdown/pointerup pair. That
+      // could release sprint while the original finger is still holding the button.
+      e.stopImmediatePropagation();
+      return;
+    }
     activeSprintPointer=e.pointerId;
     try{sprintButton.setPointerCapture(e.pointerId)}catch{}
   },{capture:true});
   const endSprint=e=>{
-    if(activeSprintPointer===null||e.pointerId!==activeSprintPointer)return;
+    if(activeSprintPointer===null||e.pointerId!==activeSprintPointer){
+      // Keep non-owner pointerup/cancel events away from game.js for the same reason.
+      if(activeSprintPointer!==null)e.stopImmediatePropagation();
+      return;
+    }
     const id=activeSprintPointer;
     activeSprintPointer=null;
     if(e.type!=='pointerup')release(sprintButton,id);
@@ -37,9 +47,13 @@ if(sprintButton){
 if(movePad){
   movePad.addEventListener('pointerdown',e=>{
     if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
-    // The joystick belongs to one finger until that gesture ends. Without this guard a second
-    // touch can steal activeMovePointer, leaving game.js with stale mx/my from the first finger.
-    if(activeMovePointer!==null&&activeMovePointer!==e.pointerId)return;
+    // The joystick belongs to one finger until that gesture ends. A capture-listener return alone
+    // is not enough: game.js would still receive the extra pointer and could overwrite its drag
+    // origin while activeMovePointer continued to refer to the first finger.
+    if(activeMovePointer!==null&&activeMovePointer!==e.pointerId){
+      e.stopImmediatePropagation();
+      return;
+    }
     activeMovePointer=e.pointerId;
     try{movePad.setPointerCapture(e.pointerId)}catch{}
   },{capture:true});
@@ -62,7 +76,11 @@ if(movePad){
   },{capture:true});
 
   const endMove=e=>{
-    if(activeMovePointer===null||e.pointerId!==activeMovePointer)return;
+    if(activeMovePointer===null||e.pointerId!==activeMovePointer){
+      // A second finger must not zero mx/my while the joystick owner is still moving.
+      if(activeMovePointer!==null)e.stopImmediatePropagation();
+      return;
+    }
     const id=activeMovePointer;
     activeMovePointer=null;
     // game.js already handles pointercancel, but it has no lostpointercapture handler. Convert
