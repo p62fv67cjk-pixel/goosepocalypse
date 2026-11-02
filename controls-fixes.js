@@ -4,11 +4,13 @@
 // and the movement-audio controller in agreement without changing weapon/soundtrack code.
 const sprintButton=document.querySelector('#sprint');
 const movePad=document.querySelector('#move');
+const gameCanvas=document.querySelector('#game');
 let activeMovePointer=null;
+let activeLookPointer=null;
 
-function release(el){
+function release(el,pointerId=-1){
   if(!el)return;
-  try{el.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:-1,pointerType:'touch'}))}
+  try{el.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId,pointerType:'touch'}))}
   catch{el.dispatchEvent(new Event('pointerup',{bubbles:true}))}
 }
 
@@ -51,10 +53,34 @@ if(movePad){
   }
 }
 
+// game.js stores its camera-look drag as a boolean and only clears it on pointerup. On iPhone,
+// an interrupted gesture can therefore leave the camera permanently dragging. Capture the look
+// pointer and convert cancellation/lost-capture into the pointerup game.js already understands.
+if(gameCanvas){
+  gameCanvas.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='touch'||e.pointerType==='pen'){
+      activeLookPointer=e.pointerId;
+      try{gameCanvas.setPointerCapture(e.pointerId)}catch{}
+    }
+  },{capture:true});
+  const endLook=e=>{
+    if(activeLookPointer===null||e.pointerId!==activeLookPointer)return;
+    const id=activeLookPointer;
+    activeLookPointer=null;
+    if(e.type!=='pointerup')release(gameCanvas,id);
+  };
+  for(const type of ['pointerup','pointercancel','lostpointercapture']){
+    gameCanvas.addEventListener(type,endLook,{capture:true});
+  }
+}
+
 function releaseAllControls(){
+  const lookId=activeLookPointer;
   activeMovePointer=null;
+  activeLookPointer=null;
   release(sprintButton);
   release(movePad);
+  release(gameCanvas,lookId??-1);
 }
 
 document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseAllControls()});
