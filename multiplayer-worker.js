@@ -6,6 +6,7 @@ const INPUT_HZ=20;
 const MIN_INPUT_MS=1000/INPUT_HZ;
 const REVIVE_RADIUS=2.4;
 const REVIVE_MS=3000;
+const REVIVE_HP=35;
 
 function json(ws,value){try{ws.send(JSON.stringify(value))}catch{}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,Number(n)||0))}
@@ -22,7 +23,7 @@ export class GooseRoom {
     const p={slot,ws:server,seq:-1,lastInput:0,character:slot==='p1'?'Phoenix':'Mummy',x:0,z:0,hp:100,downed:false,revive:null};
     this.players.set(slot,p);
     server.addEventListener('message',e=>this.onMessage(p,e));
-    const close=()=>{this.players.delete(slot);this.broadcast({t:'peer_left',slot})};
+    const close=()=>{if(!this.players.has(slot))return;this.cancelRevivesBy(slot);this.players.delete(slot);this.broadcast({t:'peer_left',slot})};
     server.addEventListener('close',close);server.addEventListener('error',close);
     json(server,{t:'welcome',slot,seed:this.seed,wave:this.wave,score:this.score,players:[...this.players.values()].map(this.publicPlayer)});
     this.broadcast({t:'peer_joined',player:this.publicPlayer(p)},slot);
@@ -30,6 +31,22 @@ export class GooseRoom {
   }
   publicPlayer(p){return {slot:p.slot,character:p.character,x:p.x,z:p.z,hp:p.hp,downed:p.downed}}
   broadcast(msg,except){for(const p of this.players.values())if(p.slot!==except)json(p.ws,msg)}
+  cancelRevivesBy(slot){for(const target of this.players.values())if(target.revive?.by===slot){target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot})}}
+  cancelRevive(target){if(!target?.revive)return;target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot})}
+  validateRevive(target){
+    if(!target?.revive||!target.downed)return false;
+    const reviver=this.players.get(target.revive.by);
+    if(!reviver||reviver.downed||Math.hypot(reviver.x-target.x,reviver.z-target.z)>REVIVE_RADIUS){this.cancelRevive(target);return false}
+    return true;
+  }
+  scheduleRevive(target){
+    const started=target.revive?.started;
+    setTimeout(()=>{
+      if(!target.revive||target.revive.started!==started||!this.validateRevive(target))return;
+      target.revive=null;target.downed=false;target.hp=REVIVE_HP;
+      this.broadcast({t:'revived',target:target.slot,by:this.players.get(target.slot)?.slot===target.slot?undefined:undefined,hp:target.hp,player:this.publicPlayer(target)});
+    },REVIVE_MS);
+  }
   onMessage(p,event){
     if(typeof event.data!=='string'||event.data.length>MAX_MESSAGE_BYTES)return;
     let m;try{m=JSON.parse(event.data)}catch{return}
@@ -43,7 +60,9 @@ export class GooseRoom {
     }
     if(m.t==='state'){
       // Position is bounded here for interpolation only. HP/score/kills are deliberately not client writable.
-      p.x=clamp(m.x,-105,105);p.z=clamp(m.z,-105,105);this.broadcast({t:'state',slot:p.slot,seq:p.seq,x:p.x,z:p.z},p.slot);return;
+      p.x=clamp(m.x,-105,105);p.z=clamp(m.z,-105,105);
+      for(const target of this.players.values())if(target.revive&&(target===p||target.revive.by===p.slot))this.validateRevive(target);
+      this.broadcast({t:'state',slot:p.slot,seq:p.seq,x:p.x,z:p.z},p.slot);return;
     }
     if(m.t==='character'){
       const wanted=m.character==='Mummy'?'Mummy':'Phoenix',other=[...this.players.values()].find(q=>q!==p);
@@ -51,12 +70,12 @@ export class GooseRoom {
       this.broadcast({t:'character',slot:p.slot,character:p.character});json(p.ws,{t:'character',slot:p.slot,character:p.character});return;
     }
     if(m.t==='revive_start'){
-      const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed)return;
+      const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed||target.revive)return;
       if(Math.hypot(p.x-target.x,p.z-target.z)>REVIVE_RADIUS)return;
-      target.revive={by:p.slot,started:Date.now()};json(p.ws,{t:'revive_started',target:target.slot,duration:REVIVE_MS});return;
+      target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
     }
     if(m.t==='revive_cancel'){
-      const target=this.players.get(m.target);if(target?.revive?.by===p.slot){target.revive=null;this.broadcast({t:'revive_cancelled',target:target.slot})}
+      const target=this.players.get(m.target);if(target?.revive?.by===p.slot)this.cancelRevive(target);
     }
   }
 }
