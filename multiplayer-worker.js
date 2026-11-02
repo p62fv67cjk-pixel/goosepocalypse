@@ -16,6 +16,9 @@ function clamp(n,min,max){return Math.max(min,Math.min(max,Number(n)||0))}
 function safeRoomId(value){return typeof value==='string'&&/^[A-Za-z0-9_-]{16,64}$/.test(value)}
 function randomRoomId(){const b=new Uint8Array(18);crypto.getRandomValues(b);return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function messageBytes(value){return typeof value==='string'?encoder.encode(value).byteLength:Infinity}
+function seqChannel(type){return type==='input'?'input':type==='state'?'state':'action'}
+function isFreshSeq(p,type,seq){const channel=seqChannel(type);return Number.isSafeInteger(seq)&&seq>(p.seq[channel]??-1)}
+function commitSeq(p,type,seq){p.seq[seqChannel(type)]=seq}
 
 export class GooseRoom {
   constructor(state){this.state=state;this.players=new Map();this.seed=crypto.getRandomValues(new Uint32Array(1))[0];this.wave=1;this.score=0;this.tick=0}
@@ -24,7 +27,10 @@ export class GooseRoom {
     if(this.players.size>=MAX_PLAYERS)return new Response('Room full',{status:409});
     const pair=new WebSocketPair(),client=pair[0],server=pair[1];server.accept();
     const slot=this.players.has('p1')?'p2':'p1';
-    const p={slot,ws:server,seq:-1,lastInput:0,lastState:0,character:slot==='p1'?'Phoenix':'Mummy',x:0,z:0,hp:100,downed:false,revive:null};
+    // Input, interpolation state and discrete actions are independent streams. Keep a sequence
+    // cursor per stream so harmless WebSocket scheduling/reordering cannot make a newer state
+    // packet invalidate an otherwise-valid movement packet (or vice versa).
+    const p={slot,ws:server,seq:{input:-1,state:-1,action:-1},lastInput:0,lastState:0,character:slot==='p1'?'Phoenix':'Mummy',x:0,z:0,hp:100,downed:false,revive:null};
     this.players.set(slot,p);
     server.addEventListener('message',e=>this.onMessage(p,e));
     const close=()=>{if(!this.players.has(slot))return;this.cancelRevivesBy(slot);this.players.delete(slot);this.broadcast({t:'peer_left',slot})};
@@ -55,27 +61,25 @@ export class GooseRoom {
   onMessage(p,event){
     if(messageBytes(event.data)>MAX_MESSAGE_BYTES)return;
     let m;try{m=JSON.parse(event.data)}catch{return}
-    if(!m||typeof m!=='object'||!Number.isSafeInteger(m.seq)||m.seq<=p.seq)return;
+    if(!m||typeof m!=='object'||typeof m.t!=='string'||!isFreshSeq(p,m.t,m.seq))return;
 
-    // Only consume a sequence number after a packet is accepted. Previously a packet that
-    // arrived inside a rate-limit window advanced p.seq before being discarded. A noisy
-    // client could therefore make its next legitimate input/state look stale and starve its
-    // own controls. Each accepted message type now commits its sequence at the point it is used.
+    // Only consume a sequence number after a packet is accepted. Each independent stream also
+    // owns its sequence cursor, preventing state/input traffic from starving one another.
     if(m.t==='input'){
-      const now=Date.now();if(now-p.lastInput<MIN_INPUT_MS)return;p.lastInput=now;p.seq=m.seq;
+      const now=Date.now();if(now-p.lastInput<MIN_INPUT_MS)return;p.lastInput=now;commitSeq(p,m.t,m.seq);
       const move=Array.isArray(m.move)?m.move:[0,0];
       const x=clamp(move[0],-1,1),z=clamp(move[1],-1,1),mag=Math.hypot(x,z),scale=mag>1?1/mag:1;
-      const clean={t:'input',slot:p.slot,seq:p.seq,move:[x*scale,z*scale],yaw:clamp(m.yaw,-Math.PI*4,Math.PI*4),pitch:clamp(m.pitch,-1.5,1.5),sprint:!!m.sprint,fire:!!m.fire};
+      const clean={t:'input',slot:p.slot,seq:m.seq,move:[x*scale,z*scale],yaw:clamp(m.yaw,-Math.PI*4,Math.PI*4),pitch:clamp(m.pitch,-1.5,1.5),sprint:!!m.sprint,fire:!!m.fire};
       this.broadcast(clean,p.slot);return;
     }
     if(m.t==='state'){
-      const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;p.lastState=now;p.seq=m.seq;
+      const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;p.lastState=now;commitSeq(p,m.t,m.seq);
       p.x=clamp(m.x,-105,105);p.z=clamp(m.z,-105,105);
       for(const target of this.players.values())if(target.revive&&(target===p||target.revive.by===p.slot))this.validateRevive(target);
-      this.broadcast({t:'state',slot:p.slot,seq:p.seq,x:p.x,z:p.z},p.slot);return;
+      this.broadcast({t:'state',slot:p.slot,seq:m.seq,x:p.x,z:p.z},p.slot);return;
     }
     if(m.t==='character'){
-      p.seq=m.seq;
+      commitSeq(p,m.t,m.seq);
       const wanted=m.character==='Mummy'?'Mummy':'Phoenix',other=[...this.players.values()].find(q=>q!==p);
       p.character=other&&other.character===wanted?(wanted==='Mummy'?'Phoenix':'Mummy'):wanted;
       this.broadcast({t:'character',slot:p.slot,character:p.character});json(p.ws,{t:'character',slot:p.slot,character:p.character});return;
@@ -83,10 +87,10 @@ export class GooseRoom {
     if(m.t==='revive_start'){
       const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed||target.revive)return;
       if(Math.hypot(p.x-target.x,p.z-target.z)>REVIVE_RADIUS)return;
-      p.seq=m.seq;target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
+      commitSeq(p,m.t,m.seq);target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
     }
     if(m.t==='revive_cancel'){
-      const target=this.players.get(m.target);if(target?.revive?.by===p.slot){p.seq=m.seq;this.cancelRevive(target)}
+      const target=this.players.get(m.target);if(target?.revive?.by===p.slot){commitSeq(p,m.t,m.seq);this.cancelRevive(target)}
     }
   }
 }
