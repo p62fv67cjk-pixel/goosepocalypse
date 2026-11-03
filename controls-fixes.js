@@ -15,6 +15,16 @@ function release(el,pointerId=-1){
   catch{el.dispatchEvent(new Event('pointerup',{bubbles:true}))}
 }
 
+// effects.js used to treat pointerleave as sprint release. On iPhone a held/captured touch can
+// produce pointerleave while the finger is still down, which drops running audio back to walking
+// even though game.js still considers sprint held. Consume leave during owned sprint gestures;
+// pointerup, pointercancel and lostpointercapture are the only terminal events.
+document.addEventListener('pointerleave',e=>{
+  if(sprintButton&&activeSprintPointer!==null&&e.target===sprintButton&&e.pointerId===activeSprintPointer){
+    e.stopImmediatePropagation();
+  }
+},{capture:true});
+
 // Sprint is a held control, so give it explicit pointer ownership. This prevents a second finger,
 // a stray pointerleave, or an interrupted Safari gesture from toggling the run state incorrectly.
 if(sprintButton){
