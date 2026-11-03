@@ -66,9 +66,17 @@ if(movePad){
 
   // Keep every non-owner move away from game.js. Blocking only the second pointerdown is not
   // sufficient on multi-touch Safari: later pointermove events can still target the joystick and
-  // overwrite mx/my even though the first finger owns the control. That can also start/stop or
-  // redirect movement audio incorrectly. For the owner, repair Safari's occasional buttons=0.
+  // overwrite mx/my even though the first finger owns the control. After the owner releases, a
+  // previously rejected second finger may remain on-screen and Safari can retarget its moves to
+  // the pad. With no active owner those orphaned moves must also be rejected or they can restart
+  // movement/footsteps without a valid joystick pointerdown. Mouse hover remains unaffected.
+  // For the owner, repair Safari's occasional buttons=0.
   movePad.addEventListener('pointermove',e=>{
+    const touchLike=e.pointerType==='touch'||e.pointerType==='pen';
+    if(touchLike&&activeMovePointer===null){
+      e.stopImmediatePropagation();
+      return;
+    }
     if(activeMovePointer!==null&&e.pointerId!==activeMovePointer){
       e.stopImmediatePropagation();
       return;
