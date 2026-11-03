@@ -12,25 +12,30 @@ HTMLMediaElement.prototype.play=function(...args){
 const walk=new Audio(WALK_SRC),run=new Audio(RUN_SRC),gravel=new Audio(GRAVEL_SRC);
 for(const a of[walk,run,gravel]){a.__gwtManagedAudio=true;a.preload='auto';a.playsInline=true;a.volume=.92}walk.loop=run.loop=true;gravel.loop=false;
 let moving=false,sprinting=false,jumping=false,current=null,unlocked=false,movePointer=null,sprintPointer=null,gamePaused=false;
+// Invalidate pending Safari play() promises on every stop/restart, even for the same track.
+let playbackGeneration=0;
 let jumpY=0,jumpVY=0,jumpFrameTime=0;
 function gameActive(){const menu=document.querySelector('#menu'),pause=document.querySelector('#pauseMenu');return !gamePaused&&menu&&getComputedStyle(menu).display==='none'&&(!pause||getComputedStyle(pause).display==='none')}
-function stopTrack(reset=true){for(const a of[walk,run]){try{a.pause();if(reset)a.currentTime=0}catch{}}current=null}
+function stopTrack(reset=true){playbackGeneration++;for(const a of[walk,run]){try{a.pause();if(reset)a.currentTime=0}catch{}}current=null}
 async function playTrack(a){
  if(current===a&&!a.paused)return;
  stopTrack(true);
  current=a;
+ const generation=playbackGeneration;
  a.muted=false;
  try{
   await nativePlay.call(a);
   // Safari may settle play() after a pause, jump, sprint switch or background event.
   // Never allow an obsolete asynchronous start to leave an audible footstep loop.
+  if(generation!==playbackGeneration)return;
   if(current!==a||!gameActive()||!moving||jumping||(sprinting?run:walk)!==a){
    a.pause();a.currentTime=0;
+   if(current===a)current=null;
   }
  }catch{
   // Failed autoplay must not leave a stale 'current' marker. A later valid gesture
   // can retry the same recording rather than treating it as already running.
-  if(current===a)current=null;
+  if(generation===playbackGeneration&&current===a)current=null;
  }
 }
 function syncMovement(){if(!gameActive()||!moving||jumping){stopTrack(true);return}playTrack(sprinting?run:walk)}
