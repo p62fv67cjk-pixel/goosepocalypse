@@ -19,13 +19,14 @@ async function playTrack(a){if(current===a&&!a.paused)return;stopTrack(true);cur
 function syncMovement(){if(!gameActive()||!moving||jumping){stopTrack(true);return}playTrack(sprinting?run:walk)}
 let ctx=null;
 function ensureCtx(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!ctx)ctx=new AC();if(ctx.state==='suspended')ctx.resume().catch(()=>{});return ctx}catch{return null}}
-async function unlock(){
- // iOS can suspend an already-unlocked AudioContext after app switching, calls, Siri, or locking.
- // Every fresh user gesture must therefore try to resume the context, not return early forever.
+function unlock(){
+ // Resume WebAudio on every gesture: iOS can suspend it after calls, Siri or backgrounding.
+ // Do NOT asynchronously prime walk/run recordings here. Awaiting play() used to race the
+ // joystick's first pointerdown: the unlock continuation could pause and rewind the footstep
+ // track *after* movement had started, leaving silent walking until another state change.
+ // The movement state machine alone owns starting/stopping HTMLAudioElement playback.
  ensureCtx();
- if(unlocked)return;
  unlocked=true;
- for(const a of[walk,run,gravel]){try{a.muted=true;await nativePlay.call(a);a.pause();a.currentTime=0;a.muted=false}catch{a.muted=false}}
 }
 document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
 const pad=document.querySelector('#move');
