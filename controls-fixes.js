@@ -14,8 +14,15 @@ function release(el,pointerId=-1){
   // more than once for one interruption (blur + pagehide, or both orientation APIs on iPhone).
   // A fake pointerId=-1 release would leak into game.js/effects.js as a second terminal gesture.
   if(!el||pointerId===null||pointerId<0)return;
-  try{el.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId,pointerType:'touch'}))}
-  catch{el.dispatchEvent(new Event('pointerup',{bubbles:true}))}
+  try{
+    const event=new PointerEvent('pointerup',{bubbles:true,pointerId,pointerType:'touch'});
+    Object.defineProperty(event,'__gwtSyntheticRelease',{value:true});
+    el.dispatchEvent(event);
+  }catch{
+    const event=new Event('pointerup',{bubbles:true});
+    Object.defineProperty(event,'__gwtSyntheticRelease',{value:true});
+    el.dispatchEvent(event);
+  }
 }
 
 // effects.js used to treat pointerleave as sprint release. On iPhone a held/captured touch can
@@ -139,7 +146,7 @@ if(gameCanvas){
     if(activeLookPointer===null||e.pointerId!==activeLookPointer)e.stopImmediatePropagation();
   },{capture:true});
   gameCanvas.addEventListener('pointerup',e=>{
-    if((e.pointerType==='touch'||e.pointerType==='pen')&&
+    if(!e.__gwtSyntheticRelease&&(e.pointerType==='touch'||e.pointerType==='pen')&&
        (activeLookPointer===null||e.pointerId!==activeLookPointer)){
       e.stopImmediatePropagation();
     }
