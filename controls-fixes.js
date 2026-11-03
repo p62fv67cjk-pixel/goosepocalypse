@@ -71,6 +71,11 @@ if(movePad){
       return;
     }
     if(activeMovePointer!==e.pointerId||e.buttons!==0||e.__gwtSafariMove)return;
+    // Replace the broken Safari event rather than letting both the repaired event and the
+    // original buttons=0 event reach game.js/effects.js. Otherwise the original can immediately
+    // overwrite the repaired joystick state or make downstream listeners process one physical
+    // finger movement twice.
+    e.stopImmediatePropagation();
     let fixed;
     try{
       fixed=new PointerEvent('pointermove',{
