@@ -57,7 +57,14 @@ document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
 const pad=document.querySelector('#move');
 if(pad){
  const readMove=e=>{if(movePointer!==null&&e.pointerId!==movePointer)return;const r=pad.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;moving=Math.hypot(x,y)>Math.min(r.width,r.height)*.12;syncMovement()};
- pad.addEventListener('pointerdown',e=>{movePointer=e.pointerId;try{pad.setPointerCapture(e.pointerId)}catch{}readMove(e)},{capture:true});
+ pad.addEventListener('pointerdown',e=>{
+ // The first active finger owns the joystick until it releases. A second touch
+ // must not steal capture or leave the original finger unable to stop footsteps.
+ if(movePointer!==null)return;
+ movePointer=e.pointerId;
+ try{pad.setPointerCapture(e.pointerId)}catch{}
+ readMove(e)
+ },{capture:true});
  // Do not depend on e.buttons for touch. Safari can report buttons=0 during an active touch drag.
  pad.addEventListener('pointermove',e=>{if(movePointer===e.pointerId)readMove(e)},{capture:true});
  const stop=e=>{if(e&&movePointer!==null&&e.pointerId!==movePointer)return;movePointer=null;moving=false;stopTrack(true)};
