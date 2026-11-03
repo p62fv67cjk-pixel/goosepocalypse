@@ -18,7 +18,10 @@ let jumpY=0,jumpVY=0,jumpFrameTime=0;
 function gameActive(){const menu=document.querySelector('#menu'),pause=document.querySelector('#pauseMenu');return !gamePaused&&menu&&getComputedStyle(menu).display==='none'&&(!pause||getComputedStyle(pause).display==='none')}
 function stopTrack(reset=true){playbackGeneration++;for(const a of[walk,run]){try{a.pause();if(reset)a.currentTime=0}catch{}}current=null}
 async function playTrack(a){
- if(current===a&&!a.paused)return;
+ // A pending iOS play() promise is already a start request. Do not restart it on
+ // every joystick pointermove: repeated pause()/play() calls can abort playback forever.
+ // A failed request clears current in the catch handler so the next gesture can retry.
+ if(current===a)return;
  stopTrack(true);
  current=a;
  const generation=playbackGeneration;
