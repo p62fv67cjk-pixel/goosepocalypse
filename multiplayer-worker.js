@@ -119,7 +119,9 @@ export class GooseRoom {
       this.broadcast({t:'character',slot:p.slot,character:p.character});json(p.ws,{t:'character',slot:p.slot,character:p.character});return;
     }
     if(m.t==='damage'){
-      if(p.downed)return;
+      // A damage event received while already downed is terminally irrelevant. Consume its
+      // sequence number so a delayed/replayed packet cannot become valid after a revive.
+      if(p.downed){commitSeq(p,m.t,m.seq);return}
       const amount=Number(m.amount);if(!Number.isFinite(amount)||amount<=0||amount>MAX_DAMAGE_PER_HIT)return;
       const now=Date.now();if(now-p.lastDamage<DAMAGE_COOLDOWN_MS)return;
       p.lastDamage=now;commitSeq(p,m.t,m.seq);p.hp=Math.max(0,p.hp-amount);
