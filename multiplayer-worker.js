@@ -88,7 +88,11 @@ export class GooseRoom {
     if(!m||typeof m!=='object'||Array.isArray(m)||typeof m.t!=='string'||!isFreshSeq(p,m.t,m.seq))return;
 
     if(m.t==='input'){
-      const now=Date.now();if(now-p.lastInput<MIN_INPUT_MS)return;p.lastInput=now;commitSeq(p,m.t,m.seq);
+      const now=Date.now();
+      // Throttled packets are intentionally dropped, not deferred. Consume their sequence
+      // number so a delayed/replayed joystick/fire packet cannot become current later.
+      if(now-p.lastInput<MIN_INPUT_MS){commitSeq(p,m.t,m.seq);return}
+      p.lastInput=now;commitSeq(p,m.t,m.seq);
       const move=Array.isArray(m.move)?m.move:[0,0];
       const x=clamp(move[0],-1,1),z=clamp(move[1],-1,1),mag=Math.hypot(x,z),scale=mag>1?1/mag:1;
       const clean=p.downed
@@ -97,7 +101,10 @@ export class GooseRoom {
       this.broadcast(clean,p.slot);return;
     }
     if(m.t==='state'){
-      const now=Date.now();if(now-p.lastState<MIN_STATE_MS)return;
+      const now=Date.now();
+      // State updates inside the relay rate limit are also terminally dropped. Without
+      // consuming seq, an old position could be replayed after the limit and look fresh.
+      if(now-p.lastState<MIN_STATE_MS){commitSeq(p,m.t,m.seq);return}
       const rawX=Number(m.x),rawZ=Number(m.z);
       if(!Number.isFinite(rawX)||!Number.isFinite(rawZ)){json(p.ws,{t:'state_rejected',reason:'invalid_position',x:p.x,z:p.z});return}
       const nextX=clamp(rawX,-105,105),nextZ=clamp(rawZ,-105,105);
