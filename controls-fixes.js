@@ -131,6 +131,19 @@ if(gameCanvas){
     activeLookPointer=e.pointerId;
     try{gameCanvas.setPointerCapture(e.pointerId)}catch{}
   },{capture:true});
+  // game.js uses a single camera drag flag, not pointer IDs. Reject unrelated fingers
+  // before its handlers see them, including a stray release that would end the real drag.
+  // Also reject orphaned touch moves after the owning finger has lifted.
+  gameCanvas.addEventListener('pointermove',e=>{
+    if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
+    if(activeLookPointer===null||e.pointerId!==activeLookPointer)e.stopImmediatePropagation();
+  },{capture:true});
+  gameCanvas.addEventListener('pointerup',e=>{
+    if((e.pointerType==='touch'||e.pointerType==='pen')&&
+       (activeLookPointer===null||e.pointerId!==activeLookPointer)){
+      e.stopImmediatePropagation();
+    }
+  },{capture:true});
   const endLook=e=>{
     if(activeLookPointer===null||e.pointerId!==activeLookPointer)return;
     const id=activeLookPointer;
