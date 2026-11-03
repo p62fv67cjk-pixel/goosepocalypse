@@ -15,7 +15,24 @@ let moving=false,sprinting=false,jumping=false,current=null,unlocked=false,moveP
 let jumpY=0,jumpVY=0,jumpFrameTime=0;
 function gameActive(){const menu=document.querySelector('#menu'),pause=document.querySelector('#pauseMenu');return !gamePaused&&menu&&getComputedStyle(menu).display==='none'&&(!pause||getComputedStyle(pause).display==='none')}
 function stopTrack(reset=true){for(const a of[walk,run]){try{a.pause();if(reset)a.currentTime=0}catch{}}current=null}
-async function playTrack(a){if(current===a&&!a.paused)return;stopTrack(true);current=a;a.muted=false;try{await nativePlay.call(a)}catch{}}
+async function playTrack(a){
+ if(current===a&&!a.paused)return;
+ stopTrack(true);
+ current=a;
+ a.muted=false;
+ try{
+  await nativePlay.call(a);
+  // Safari may settle play() after a pause, jump, sprint switch or background event.
+  // Never allow an obsolete asynchronous start to leave an audible footstep loop.
+  if(current!==a||!gameActive()||!moving||jumping||(sprinting?run:walk)!==a){
+   a.pause();a.currentTime=0;
+  }
+ }catch{
+  // Failed autoplay must not leave a stale 'current' marker. A later valid gesture
+  // can retry the same recording rather than treating it as already running.
+  if(current===a)current=null;
+ }
+}
 function syncMovement(){if(!gameActive()||!moving||jumping){stopTrack(true);return}playTrack(sprinting?run:walk)}
 let ctx=null;
 function ensureCtx(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!ctx)ctx=new AC();if(ctx.state==='suspended')ctx.resume().catch(()=>{});return ctx}catch{return null}}
