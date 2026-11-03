@@ -141,3 +141,8 @@ function releaseAllControls(){
 document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseAllControls()});
 window.addEventListener('pagehide',releaseAllControls);
 window.addEventListener('blur',releaseAllControls);
+// Rotating an iPhone can invalidate pointer capture and change control geometry without a clean
+// terminal event. Release held movement/look/sprint before the new portrait/landscape layout is
+// used so stale coordinates cannot leave the player walking, running, or camera-dragging.
+window.addEventListener('orientationchange',releaseAllControls);
+screen.orientation?.addEventListener?.('change',releaseAllControls);
