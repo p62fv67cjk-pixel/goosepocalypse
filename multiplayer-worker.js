@@ -42,7 +42,7 @@ export class GooseRoom {
     const slot=this.players.has('p1')?'p2':'p1';
     const existing=[...this.players.values()][0];
     const character=existing?otherCharacter(existing.character):(slot==='p1'?'Phoenix':'Mummy');
-    const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,lastDamage:0,hasState:false,character,x:0,z:0,hp:100,downed:false,revive:null};
+    const p={slot,ws:server,seq:{input:-1,state:-1},lastInput:0,lastState:0,lastDamage:0,hasState:false,character,x:0,z:0,hp:100,downed:false,downedAt:0,downedPositionTrusted:false,revive:null};
     this.players.set(slot,p);
     server.addEventListener('message',e=>this.onMessage(p,e));
     const close=()=>{
@@ -68,7 +68,7 @@ export class GooseRoom {
     const reviver=this.players.get(target.revive.by);
     if(!reviver){this.cancelRevive(target,'reviver_left');return false}
     if(reviver.downed){this.cancelRevive(target,'reviver_downed');return false}
-    if(!target.hasState){this.cancelRevive(target,'position_unknown');return false}
+    if(!target.hasState||!target.downedPositionTrusted){this.cancelRevive(target,'position_unknown');return false}
     if(!this.reviverStateFresh(reviver)){this.cancelRevive(target,'reviver_state_stale');return false}
     if(Math.hypot(reviver.x-target.x,reviver.z-target.z)>REVIVE_RADIUS){this.cancelRevive(target,'out_of_range');return false}
     return true;
@@ -78,7 +78,7 @@ export class GooseRoom {
     setTimeout(()=>{
       if(!target.revive||target.revive.started!==started||!this.validateRevive(target))return;
       const by=target.revive.by;
-      target.revive=null;target.downed=false;target.hp=REVIVE_HP;
+      target.revive=null;target.downed=false;target.downedAt=0;target.downedPositionTrusted=false;target.hp=REVIVE_HP;
       this.broadcast({t:'revived',target:target.slot,by,hp:target.hp,player:this.publicPlayer(target)});
     },REVIVE_MS);
   }
@@ -123,13 +123,17 @@ export class GooseRoom {
       const amount=Number(m.amount);if(!Number.isFinite(amount)||amount<=0||amount>MAX_DAMAGE_PER_HIT)return;
       const now=Date.now();if(now-p.lastDamage<DAMAGE_COOLDOWN_MS)return;
       p.lastDamage=now;commitSeq(p,m.t,m.seq);p.hp=Math.max(0,p.hp-amount);
-      if(p.hp===0){p.downed=true;this.cancelRevivesBy(p.slot,'reviver_downed')}
+      if(p.hp===0){
+        p.downed=true;p.downedAt=now;
+        p.downedPositionTrusted=!!p.hasState&&now-p.lastState<=STATE_STALE_MS;
+        this.cancelRevivesBy(p.slot,'reviver_downed');
+      }
       const update={t:'health',slot:p.slot,hp:p.hp,downed:p.downed};
       this.broadcast(update);json(p.ws,update);return;
     }
     if(m.t==='revive_start'){
       const target=this.players.get(m.target);if(!target||target===p||p.downed||!target.downed||target.revive)return;
-      if(!target.hasState||!this.reviverStateFresh(p))return;
+      if(!target.hasState||!target.downedPositionTrusted||!this.reviverStateFresh(p))return;
       if(Math.hypot(p.x-target.x,p.z-target.z)>REVIVE_RADIUS)return;
       commitSeq(p,m.t,m.seq);target.revive={by:p.slot,started:Date.now()};this.broadcast({t:'revive_started',target:target.slot,by:p.slot,duration:REVIVE_MS});this.scheduleRevive(target);return;
     }
