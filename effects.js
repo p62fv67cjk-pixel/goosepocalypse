@@ -11,7 +11,7 @@ HTMLMediaElement.prototype.play=function(...args){
 };
 const walk=new Audio(WALK_SRC),run=new Audio(RUN_SRC),gravel=new Audio(GRAVEL_SRC);
 for(const a of[walk,run,gravel]){a.__gwtManagedAudio=true;a.preload='auto';a.playsInline=true;a.volume=.92}walk.loop=run.loop=true;gravel.loop=false;
-let moving=false,sprinting=false,jumping=false,current=null,unlocked=false,movePointer=null,gamePaused=false;
+let moving=false,sprinting=false,jumping=false,current=null,unlocked=false,movePointer=null,sprintPointer=null,gamePaused=false;
 let jumpY=0,jumpVY=0,jumpFrameTime=0;
 function gameActive(){const menu=document.querySelector('#menu'),pause=document.querySelector('#pauseMenu');return !gamePaused&&menu&&getComputedStyle(menu).display==='none'&&(!pause||getComputedStyle(pause).display==='none')}
 function stopTrack(reset=true){for(const a of[walk,run]){try{a.pause();if(reset)a.currentTime=0}catch{}}current=null}
@@ -38,11 +38,13 @@ if(pad){
  for(const ev of['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(ev,stop,{capture:true})
 }
 const sprintBtn=document.querySelector('#sprint');
-sprintBtn?.addEventListener('pointerdown',()=>{sprinting=true;syncMovement()},{capture:true});
-// A captured iPhone touch may emit pointerleave while the finger is still physically held.
-// Treat only terminal pointer events as sprint release so run audio cannot fall back to walking
-// mid-sprint. controls-fixes.js owns pointer capture and synthesizes release after interruptions.
-for(const ev of['pointerup','pointercancel','lostpointercapture'])sprintBtn?.addEventListener(ev,()=>{sprinting=false;syncMovement()},{capture:true});
+if(sprintBtn){
+ sprintBtn.addEventListener('pointerdown',e=>{if(sprintPointer!==null&&e.pointerId!==sprintPointer)return;sprintPointer=e.pointerId;try{sprintBtn.setPointerCapture(e.pointerId)}catch{}sprinting=true;syncMovement()},{capture:true});
+ // A captured iPhone touch may emit pointerleave while the finger is still physically held.
+ // Only the finger that started sprint may end sprint; unrelated multitouch releases are ignored.
+ const stopSprint=e=>{if(sprintPointer===null||e.pointerId!==sprintPointer)return;sprintPointer=null;sprinting=false;syncMovement()};
+ for(const ev of['pointerup','pointercancel','lostpointercapture'])sprintBtn.addEventListener(ev,stopSprint,{capture:true});
+}
 function noiseBurst(duration,peak,startHz,endHz){const c=ensureCtx();if(!c)return;const n=Math.floor(c.sampleRate*duration),b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++){const t=i/n;d[i]=(Math.random()*2-1)*Math.sin(Math.PI*t)*Math.pow(1-t,.45)}const src=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();src.buffer=b;f.type='lowpass';f.frequency.setValueAtTime(startHz,c.currentTime);f.frequency.exponentialRampToValueAtTime(endHz,c.currentTime+duration);g.gain.setValueAtTime(.0001,c.currentTime);g.gain.exponentialRampToValueAtTime(peak,c.currentTime+.025);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+duration);src.connect(f);f.connect(g);g.connect(c.destination);src.start()}
 function jumpWhoosh(){noiseBurst(.34,.2,1350,420)}
 function landingImpact(){if(!gameActive())return;try{gravel.pause();gravel.currentTime=0;gravel.volume=.58;nativePlay.call(gravel);setTimeout(()=>{gravel.pause();gravel.currentTime=0},170)}catch{}noiseBurst(.12,.08,420,150)}
@@ -72,7 +74,7 @@ const health=document.querySelector('#health');if(health){const read=()=>{const 
 function demonicHonk(){const c=ensureCtx();if(!c)return;const t=c.currentTime,master=c.createGain(),lp=c.createBiquadFilter(),shaper=c.createWaveShaper();master.gain.setValueAtTime(.0001,t);master.gain.exponentialRampToValueAtTime(.16,t+.055);master.gain.exponentialRampToValueAtTime(.0001,t+1.05);lp.type='lowpass';lp.frequency.setValueAtTime(620,t);lp.frequency.exponentialRampToValueAtTime(180,t+1.05);const curve=new Float32Array(1024);for(let i=0;i<curve.length;i++){const x=i*2/(curve.length-1)-1;curve[i]=(1.8*x)/(1+1.25*Math.abs(x))}shaper.curve=curve;for(const[freq,det]of[[91,-8],[118,5],[147,-3]]){const o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*.62,t+.85);o.detune.value=det;o.connect(shaper);o.start(t);o.stop(t+1.08)}shaper.connect(lp);lp.connect(master);master.connect(c.destination)}
 function geeseAlive(){const e=document.querySelector('#geeseLeft');const n=Number((e?.textContent.match(/\d+/)||[0])[0]);return n>0&&gameActive()}
 function scheduleHonk(){setTimeout(()=>{if(geeseAlive()&&Math.random()<.78)demonicHonk();scheduleHonk()},3600+Math.random()*4700)}scheduleHonk();
-function suspendMovement({resetJump=false}={}){movePointer=null;moving=false;sprinting=false;stopTrack(true);try{gravel.pause();gravel.currentTime=0}catch{}if(resetJump){jumping=false;jumpY=0;jumpVY=0;jumpFrameTime=0}}
+function suspendMovement({resetJump=false}={}){movePointer=null;sprintPointer=null;moving=false;sprinting=false;stopTrack(true);try{gravel.pause();gravel.currentTime=0}catch{}if(resetJump){jumping=false;jumpY=0;jumpVY=0;jumpFrameTime=0}}
 // Pause/menu lifecycle is part of the audio state machine: no ghost footsteps under overlays.
 // Preserve airborne state across pause/background interruptions because game.js preserves the
 // physical jump too. Only a new run is allowed to discard that state.
