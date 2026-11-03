@@ -37,7 +37,12 @@ if(pad){
  const stop=e=>{if(e&&movePointer!==null&&e.pointerId!==movePointer)return;movePointer=null;moving=false;stopTrack(true)};
  for(const ev of['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(ev,stop,{capture:true})
 }
-const sprintBtn=document.querySelector('#sprint');sprintBtn?.addEventListener('pointerdown',()=>{sprinting=true;syncMovement()},{capture:true});for(const ev of['pointerup','pointercancel','pointerleave','lostpointercapture'])sprintBtn?.addEventListener(ev,()=>{sprinting=false;syncMovement()},{capture:true});
+const sprintBtn=document.querySelector('#sprint');
+sprintBtn?.addEventListener('pointerdown',()=>{sprinting=true;syncMovement()},{capture:true});
+// A captured iPhone touch may emit pointerleave while the finger is still physically held.
+// Treat only terminal pointer events as sprint release so run audio cannot fall back to walking
+// mid-sprint. controls-fixes.js owns pointer capture and synthesizes release after interruptions.
+for(const ev of['pointerup','pointercancel','lostpointercapture'])sprintBtn?.addEventListener(ev,()=>{sprinting=false;syncMovement()},{capture:true});
 function noiseBurst(duration,peak,startHz,endHz){const c=ensureCtx();if(!c)return;const n=Math.floor(c.sampleRate*duration),b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++){const t=i/n;d[i]=(Math.random()*2-1)*Math.sin(Math.PI*t)*Math.pow(1-t,.45)}const src=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();src.buffer=b;f.type='lowpass';f.frequency.setValueAtTime(startHz,c.currentTime);f.frequency.exponentialRampToValueAtTime(endHz,c.currentTime+duration);g.gain.setValueAtTime(.0001,c.currentTime);g.gain.exponentialRampToValueAtTime(peak,c.currentTime+.025);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+duration);src.connect(f);f.connect(g);g.connect(c.destination);src.start()}
 function jumpWhoosh(){noiseBurst(.34,.2,1350,420)}
 function landingImpact(){if(!gameActive())return;try{gravel.pause();gravel.currentTime=0;gravel.volume=.58;nativePlay.call(gravel);setTimeout(()=>{gravel.pause();gravel.currentTime=0},170)}catch{}noiseBurst(.12,.08,420,150)}
