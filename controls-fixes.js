@@ -90,7 +90,11 @@ if(movePad){
     }
     const id=activeMovePointer;
     activeMovePointer=null;
-    if(e.type==='lostpointercapture')release(movePad,id);
+    // game.js historically releases movement on pointerup. Safari can terminate an otherwise
+    // valid joystick gesture with pointercancel or lostpointercapture, so translate either into
+    // the same terminal pointerup after clearing ownership. This keeps gameplay velocity and the
+    // effects.js footstep state machine from disagreeing and prevents "stuck walking" on iPhone.
+    if(e.type!=='pointerup')release(movePad,id);
   };
   for(const type of ['pointerup','pointercancel','lostpointercapture']){
     movePad.addEventListener(type,endMove,{capture:true});
