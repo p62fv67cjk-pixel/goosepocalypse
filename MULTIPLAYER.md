@@ -4,59 +4,70 @@ GitHub Pages can host the client, but it cannot relay live player state. Real sh
 
 ## Smallest backend
 
-Use a tiny WebSocket room relay (Cloudflare Durable Object/WebSocket, Fly.io/Node `ws`, or equivalent). The relay owns no game rendering and stores only short-lived room state.
+The repository now contains `multiplayer-worker.js`, a minimal Cloudflare Worker + Durable Object WebSocket relay. A comparable stateful WebSocket service can replace it, but static GitHub Pages alone cannot provide real two-player networking.
 
 ### Room flow
 
 1. Host taps **Create co-op room**.
-2. Client requests a cryptographically random room id from the relay.
+2. Client `POST`s `/room` and receives a cryptographically random room id.
 3. Share URL is `?room=<id>`; no player data or secrets go in the URL.
-4. Second player opens the link and joins the same room.
-5. Server allows at most two active player sockets per room and rejects a third gameplay peer.
-6. Mummy/Phoenix choice is authoritative per slot. If both request the same character, host keeps the choice and guest receives the other character.
-7. Empty rooms expire automatically.
+4. Both clients connect by WebSocket to `/room/<id>`.
+5. The room accepts at most two active player sockets and rejects a third gameplay peer.
+6. Mummy/Phoenix choice is kept unique by the relay.
+7. The Durable Object owns short-lived room state; no fake local second player is created.
 
-## State model
+## Protocol implemented today
 
-The relay should be authoritative for room membership, wave seed, enemy IDs, damage, downs/revives, pickups and score. Clients send input/state intent, not arbitrary HP/score values.
-
-High-frequency packets (10–15 Hz):
+The relay currently accepts these sequenced client messages:
 
 ```json
 {"t":"input","seq":42,"move":[0.2,-0.8],"yaw":1.4,"pitch":-0.1,"sprint":true,"fire":false}
+{"t":"state","seq":43,"x":12.4,"z":-8.1}
+{"t":"character","seq":44,"character":"Mummy"}
+{"t":"damage","seq":45,"amount":20}
+{"t":"revive_start","seq":46,"target":"p2"}
+{"t":"revive_cancel","seq":47,"target":"p2"}
 ```
 
-Low-frequency/event packets:
+Input and position state are rate-limited to 20 Hz. Sequence numbers are monotonic per channel so stale/replayed packets cannot become current later. Positions are finite-number checked, world-bounded and speed-checked. Downed players cannot move.
 
-```json
-{"t":"event","seq":43,"kind":"fire","weapon":"primary"}
-{"t":"event","seq":44,"kind":"revive_start","target":"p2"}
-```
+The relay sends `welcome`, `peer_joined`, `peer_left`, `input`, `state`, `character`, `health`, `revive_started`, `revive_cancelled` and `revived` messages. Clients should interpolate the remote teammate between state packets while keeping the local player prediction-first so touch controls remain responsive on iPhone.
 
-Server snapshots:
+## Downed / revive contract implemented today
 
-```json
-{"t":"snapshot","tick":1201,"players":[],"enemies":[],"wave":4,"seed":91822}
-```
+A valid damage report can reduce the reporting player's relay-owned HP to zero and put that player into `downed`. A living teammate with fresh authoritative position state can start a revive only inside the 2.4-unit revive radius. The relay times the three-second hold and restores 35 HP on success.
 
-Clients interpolate the remote teammate and enemies between snapshots. The local player remains prediction-first so touch controls do not feel laggy on iPhone.
+Revive completion is revalidated server-side. It is cancelled if the reviver disconnects, becomes downed, stops supplying fresh state, leaves range, explicitly cancels, or the target is no longer downed. The downed player's position is frozen and must have been trustworthy at the moment they went down.
 
-## Downed / revive contract
+## Important authority boundary
 
-A player reaching zero HP enters `downed` instead of immediately ending the run. A living teammate within revive radius can hold revive for a server-timed duration. Damage or leaving the radius cancels it. Successful revive restores a difficulty-scaled fraction of max HP and grants a short invulnerability window. If both players are down simultaneously, the run ends.
+The relay is authoritative for room membership, character uniqueness, accepted position envelope, HP after accepted damage, downed state and revive completion. It is **not yet authoritative for goose AI or hit detection**.
 
-For solo play, the existing AI teammate uses the same state contract locally. That keeps the mechanic compatible with later network co-op rather than building two unrelated revive systems.
+Today the browser reports damage inflicted on its own local player. The relay validates the amount, applies a per-hit ceiling and cooldown, owns the resulting HP/downed transition, and prevents packet replay. This is sufficient for honest private co-op plumbing, but it is not cheat-resistant combat authority. Do not describe it as server-authoritative goose damage.
 
-## Security / robustness
+The smallest next backend step for cheat-resistant combat is to move deterministic goose state/hit resolution into the Durable Object (or another authoritative simulation service) and have clients send attack/input intent rather than self-reported damage. That is deliberately deferred until the browser client is actually wired to the relay and real two-device play is verified.
 
-- `wss://` only.
-- Validate every packet and clamp movement/fire rates server-side.
-- Monotonic sequence numbers; ignore stale packets.
-- Random room ids with enough entropy to resist guessing.
-- No authentication required for the first private share-link version, but room ids are capabilities and must never be logged publicly.
-- Heartbeats remove dead sockets and allow a brief reconnect grace period.
-- Never trust client-reported kills, score, HP, ammo, revive completion or pickup ownership.
+## Security / robustness already present
+
+- Cryptographically random, URL-safe room ids.
+- Two-player room cap.
+- Maximum WebSocket message size.
+- Packet shape/value checks and coordinate bounds.
+- 20 Hz input/state rate limits.
+- Monotonic per-channel sequence numbers with replay-resistant handling for throttled packets.
+- Movement-speed envelope checks.
+- Damage amount ceiling and damage cooldown.
+- Server-timed revive with proximity and state-freshness checks.
+
+## Still required before calling multiplayer playable
+
+- Wire the browser client to room creation/join and the WebSocket protocol.
+- Render/interpolate the remote teammate.
+- Send local goose-bite damage into the relay and consume relay health/downed updates locally.
+- Connect the revive interaction/UI to `revive_start`, `revive_cancelled` and `revived`.
+- Decide reconnect behaviour and add heartbeat/idle cleanup if real-device testing shows it is needed.
+- Test host + guest on two physical devices over `wss://`.
 
 ## Deployment boundary
 
-The current GitHub Pages build remains fully playable solo with no backend. Multiplayer UI should only appear after a relay URL is configured. Until then, the game must say multiplayer is unavailable rather than presenting fake network play.
+The current GitHub Pages build remains playable solo without the backend. Multiplayer UI must only be exposed after a relay URL is configured and the client integration above exists. Until then, the game should say multiplayer is unavailable rather than presenting simulated network play.
