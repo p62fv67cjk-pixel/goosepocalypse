@@ -10,7 +10,10 @@ let activeMovePointer=null;
 let activeLookPointer=null;
 
 function release(el,pointerId=-1){
-  if(!el)return;
+  // Never invent a pointerup when this control has no active owner. releaseAllControls can run
+  // more than once for one interruption (blur + pagehide, or both orientation APIs on iPhone).
+  // A fake pointerId=-1 release would leak into game.js/effects.js as a second terminal gesture.
+  if(!el||pointerId===null||pointerId<0)return;
   try{el.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId,pointerType:'touch'}))}
   catch{el.dispatchEvent(new Event('pointerup',{bubbles:true}))}
 }
@@ -138,9 +141,9 @@ function releaseAllControls(){
   activeSprintPointer=null;
   activeMovePointer=null;
   activeLookPointer=null;
-  release(sprintButton,sprintId??-1);
-  release(movePad,moveId??-1);
-  release(gameCanvas,lookId??-1);
+  release(sprintButton,sprintId);
+  release(movePad,moveId);
+  release(gameCanvas,lookId);
 }
 
 document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseAllControls()});
