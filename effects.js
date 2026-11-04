@@ -18,7 +18,14 @@ let physicsPlaying=true;
 let playbackGeneration=0;
 let jumpY=0,jumpVY=0,jumpFrameTime=0;
 function gameActive(){const menu=document.querySelector('#menu'),pause=document.querySelector('#pauseMenu');return physicsPlaying&&!gamePaused&&menu&&getComputedStyle(menu).display==='none'&&(!pause||getComputedStyle(pause).display==='none')}
-function stopTrack(reset=true){playbackGeneration++;for(const a of[walk,run]){try{a.pause();if(reset)a.currentTime=0}catch{}}current=null}
+function stopTrack(reset=true){
+ // Ground-state events arrive every animation frame. Avoid repeatedly seeking and
+ // pausing already-stopped media, which can churn Safari's audio pipeline.
+ if(current===null&&walk.paused&&run.paused)return;
+ playbackGeneration++;
+ for(const a of[walk,run]){try{if(!a.paused)a.pause();if(reset)a.currentTime=0}catch{}}
+ current=null
+}
 async function playTrack(a){
  // A pending iOS play() promise is already a start request. Do not restart it on
  // every joystick pointermove: repeated pause()/play() calls can abort playback forever.
