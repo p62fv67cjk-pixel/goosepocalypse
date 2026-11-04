@@ -100,7 +100,14 @@ function landingImpact(){
   gravel.volume=.58;
   // iOS may reject play() asynchronously when audio focus changes. Handle the rejection.
   const started=nativePlay.call(gravel);
-  if(started&&typeof started.catch==='function')started.catch(()=>{});
+  if(started&&typeof started.then==='function'){
+   started.then(()=>{
+    // A late Safari play() resolution must not resurrect an old landing sound.
+    if(generation!==landingGeneration||!gameActive()||jumping){
+     try{gravel.pause();gravel.currentTime=0}catch{}
+    }
+   }).catch(()=>{});
+  }
   setTimeout(()=>{if(generation===landingGeneration)stopLanding()},170);
  }catch{}
  noiseBurst(.12,.08,420,150);
