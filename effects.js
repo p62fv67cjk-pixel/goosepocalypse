@@ -56,7 +56,7 @@ function unlock(){
 document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
 const pad=document.querySelector('#move');
 if(pad){
- const readMove=e=>{if(movePointer!==null&&e.pointerId!==movePointer)return;const r=pad.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;moving=Math.hypot(x,y)>Math.min(r.width,r.height)*.12;syncMovement()};
+ const readMove=e=>{if(movePointer!==null&&e.pointerId!==movePointer)return;const r=pad.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;moving=Math.min(42,Math.hypot(x,y))/42>.18;syncMovement()};
  pad.addEventListener('pointerdown',e=>{
  // The first active finger owns the joystick until it releases. A second touch
  // must not steal capture or leave the original finger unable to stop footsteps.
