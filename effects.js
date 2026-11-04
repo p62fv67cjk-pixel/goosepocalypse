@@ -103,8 +103,8 @@ function landingImpact(){
   if(started&&typeof started.then==='function'){
    started.then(()=>{
     // A late Safari play() resolution must not resurrect an old landing sound.
-    if(generation!==landingGeneration||!gameActive()||jumping){
-     try{gravel.pause();gravel.currentTime=0}catch{}
+    if(generation===landingGeneration&&(!gameActive()||jumping)){
+     stopLanding();
     }
    }).catch(()=>{});
   }
