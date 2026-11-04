@@ -98,11 +98,23 @@ function landingImpact(){
 }
 const jumpBtn=document.querySelector('#jump');
 jumpBtn?.addEventListener('pointerdown',()=>{if(jumping||!gameActive())return;jumping=true;jumpY=0;jumpVY=5.8;jumpFrameTime=performance.now();stopTrack(true);jumpWhoosh()},{capture:true});
+// The game physics loop is authoritative for landing. A mirrored physics timer can
+// drift on throttled iPhones and restart footsteps while the player is still airborne.
+let authoritativeGroundState=false;
+window.addEventListener('gwt:ground-state',event=>{
+ authoritativeGroundState=true;
+ const {grounded,playing}=event.detail||{};
+ if(!playing){stopTrack(true);return}
+ if(!grounded){if(!jumping){jumping=true;stopTrack(true)}return}
+ if(jumping){jumping=false;jumpY=0;jumpVY=0;landingImpact()}
+ syncMovement();
+});
+// Fallback only for a standalone effects controller without game physics events.
 // Mirror game.js jump integration instead of using a wall-clock timeout. game.js caps dt at .035,
 // so a low-frame-rate iPhone can stay airborne longer than the ideal ~967 ms. Keeping the same
 // simulated gravity prevents footsteps from restarting before the player actually lands.
 function watchLanding(now){
- if(jumping&&gameActive()){
+ if(!authoritativeGroundState&&jumping&&gameActive()){
   // Pause/background time must not advance the mirrored jump. game.js also stops integrating
   // physics while paused and requestAnimationFrame is suspended while Safari is backgrounded.
   const dt=Math.min(.035,Math.max(0,(now-jumpFrameTime)/1000));jumpFrameTime=now;
