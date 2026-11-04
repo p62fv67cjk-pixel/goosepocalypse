@@ -106,13 +106,15 @@ function landingImpact(){
  noiseBurst(.12,.08,420,150);
 }
 const jumpBtn=document.querySelector('#jump');
-jumpBtn?.addEventListener('pointerdown',()=>{if(jumping||!gameActive())return;jumping=true;jumpY=0;jumpVY=5.8;jumpFrameTime=performance.now();stopTrack(true);jumpWhoosh()},{capture:true});
+jumpBtn?.addEventListener('pointerdown',()=>{if(jumping||!gameActive()||(authoritativeGroundState&&!physicsGrounded))return;jumping=true;jumpY=0;jumpVY=5.8;jumpFrameTime=performance.now();stopTrack(true);jumpWhoosh()},{capture:true});
 // The game physics loop is authoritative for landing. A mirrored physics timer can
 // drift on throttled iPhones and restart footsteps while the player is still airborne.
 let authoritativeGroundState=false;
+let physicsGrounded=true; // The game, not the effects controller, decides whether another jump is allowed.
 window.addEventListener('gwt:ground-state',event=>{
  authoritativeGroundState=true;
  const {grounded,playing}=event.detail||{};
+ physicsGrounded=grounded===true;
  physicsPlaying=Boolean(playing);
  if(!playing){moving=false;sprinting=false;stopTrack(true);return}
  if(!grounded){if(!jumping){jumping=true;stopTrack(true)}return}
@@ -150,5 +152,5 @@ function suspendMovement({resetJump=false}={}){movePointer=null;sprintPointer=nu
 // physical jump too. Only a new run is allowed to discard that state.
 document.querySelector('#pause')?.addEventListener('click',()=>{gamePaused=true;suspendMovement()},{capture:true});
 document.querySelector('.resume')?.addEventListener('click',()=>{gamePaused=false;if(jumping)jumpFrameTime=performance.now();syncMovement()},{capture:true});
-document.querySelector('.start')?.addEventListener('click',()=>{physicsPlaying=true;gamePaused=false;suspendMovement({resetJump:true})},{capture:true});
+document.querySelector('.start')?.addEventListener('click',()=>{physicsPlaying=true;physicsGrounded=true;gamePaused=false;suspendMovement({resetJump:true})},{capture:true});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendMovement();else if(jumping)jumpFrameTime=performance.now()});window.addEventListener('pagehide',()=>suspendMovement());window.addEventListener('blur',()=>suspendMovement());
