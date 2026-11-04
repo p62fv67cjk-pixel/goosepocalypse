@@ -12,10 +12,12 @@ HTMLMediaElement.prototype.play=function(...args){
 const walk=new Audio(WALK_SRC),run=new Audio(RUN_SRC),gravel=new Audio(GRAVEL_SRC);
 for(const a of[walk,run,gravel]){a.__gwtManagedAudio=true;a.preload='auto';a.playsInline=true;a.volume=.92}walk.loop=run.loop=true;gravel.loop=false;
 let moving=false,sprinting=false,jumping=false,current=null,unlocked=false,movePointer=null,sprintPointer=null,gamePaused=false;
+// Once physics has reported a stopped session, do not restart audio under the death overlay.
+let physicsPlaying=true;
 // Invalidate pending Safari play() promises on every stop/restart, even for the same track.
 let playbackGeneration=0;
 let jumpY=0,jumpVY=0,jumpFrameTime=0;
-function gameActive(){const menu=document.querySelector('#menu'),pause=document.querySelector('#pauseMenu');return !gamePaused&&menu&&getComputedStyle(menu).display==='none'&&(!pause||getComputedStyle(pause).display==='none')}
+function gameActive(){const menu=document.querySelector('#menu'),pause=document.querySelector('#pauseMenu');return physicsPlaying&&!gamePaused&&menu&&getComputedStyle(menu).display==='none'&&(!pause||getComputedStyle(pause).display==='none')}
 function stopTrack(reset=true){playbackGeneration++;for(const a of[walk,run]){try{a.pause();if(reset)a.currentTime=0}catch{}}current=null}
 async function playTrack(a){
  // A pending iOS play() promise is already a start request. Do not restart it on
@@ -104,7 +106,8 @@ let authoritativeGroundState=false;
 window.addEventListener('gwt:ground-state',event=>{
  authoritativeGroundState=true;
  const {grounded,playing}=event.detail||{};
- if(!playing){stopTrack(true);return}
+ physicsPlaying=Boolean(playing);
+ if(!playing){moving=false;sprinting=false;stopTrack(true);return}
  if(!grounded){if(!jumping){jumping=true;stopTrack(true)}return}
  if(jumping){jumping=false;jumpY=0;jumpVY=0;landingImpact()}
  syncMovement();
@@ -140,5 +143,5 @@ function suspendMovement({resetJump=false}={}){movePointer=null;sprintPointer=nu
 // physical jump too. Only a new run is allowed to discard that state.
 document.querySelector('#pause')?.addEventListener('click',()=>{gamePaused=true;suspendMovement()},{capture:true});
 document.querySelector('.resume')?.addEventListener('click',()=>{gamePaused=false;if(jumping)jumpFrameTime=performance.now();syncMovement()},{capture:true});
-document.querySelector('.start')?.addEventListener('click',()=>{gamePaused=false;suspendMovement({resetJump:true})},{capture:true});
+document.querySelector('.start')?.addEventListener('click',()=>{physicsPlaying=true;gamePaused=false;suspendMovement({resetJump:true})},{capture:true});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendMovement();else if(jumping)jumpFrameTime=performance.now()});window.addEventListener('pagehide',()=>suspendMovement());window.addEventListener('blur',()=>suspendMovement());
