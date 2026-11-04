@@ -113,7 +113,7 @@ function landingImpact(){
  noiseBurst(.12,.08,420,150);
 }
 const jumpBtn=document.querySelector('#jump');
-jumpBtn?.addEventListener('pointerdown',()=>{if(jumping||!gameActive()||(authoritativeGroundState&&!physicsGrounded))return;jumping=true;jumpY=0;jumpVY=5.8;jumpFrameTime=performance.now();stopTrack(true);jumpWhoosh()},{capture:true});
+jumpBtn?.addEventListener('pointerdown',()=>{if(jumping||!gameActive()||(authoritativeGroundState&&!physicsGrounded))return;jumping=true;jumpY=0;jumpVY=5.8;jumpFrameTime=performance.now();stopTrack(true);stopLanding();jumpWhoosh()},{capture:true});
 // The game physics loop is authoritative for landing. A mirrored physics timer can
 // drift on throttled iPhones and restart footsteps while the player is still airborne.
 let authoritativeGroundState=false;
@@ -124,7 +124,7 @@ window.addEventListener('gwt:ground-state',event=>{
  physicsGrounded=grounded===true;
  physicsPlaying=Boolean(playing);
  if(!playing){moving=false;sprinting=false;stopTrack(true);return}
- if(!grounded){if(!jumping){jumping=true;stopTrack(true)}return}
+ if(!grounded){if(!jumping){jumping=true;stopTrack(true)}stopLanding();return}
  if(jumping){jumping=false;jumpY=0;jumpVY=0;landingImpact()}
  syncMovement();
 });
