@@ -124,7 +124,13 @@ window.addEventListener('gwt:ground-state',event=>{
  physicsGrounded=grounded===true;
  physicsPlaying=Boolean(playing);
  if(!playing){moving=false;sprinting=false;stopTrack(true);return}
- if(!grounded){if(!jumping){jumping=true;stopTrack(true)}stopLanding();return}
+ if(!grounded){
+   // Only transition into airborne once. Repeated physics frames must not seek
+   // the landing sample on every tick (a costly operation on mobile Safari).
+   // The jump-button handler already stops landing audio immediately.
+   if(!jumping){jumping=true;stopTrack(true);stopLanding()}
+   return
+  }
  if(jumping){jumping=false;jumpY=0;jumpVY=0;landingImpact()}
  syncMovement();
 });
