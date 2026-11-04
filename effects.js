@@ -123,7 +123,7 @@ window.addEventListener('gwt:ground-state',event=>{
  const {grounded,playing}=event.detail||{};
  physicsGrounded=grounded===true;
  physicsPlaying=Boolean(playing);
- if(!playing){moving=false;sprinting=false;stopTrack(true);return}
+ if(!playing){moving=false;sprinting=false;stopTrack(true);stopLanding();return}
  if(!grounded){
    // Only transition into airborne once. Repeated physics frames must not seek
    // the landing sample on every tick (a costly operation on mobile Safari).
@@ -159,7 +159,7 @@ const health=document.querySelector('#health');if(health){const read=()=>{const 
 function demonicHonk(){const c=ensureCtx();if(!c)return;const t=c.currentTime,master=c.createGain(),lp=c.createBiquadFilter(),shaper=c.createWaveShaper();master.gain.setValueAtTime(.0001,t);master.gain.exponentialRampToValueAtTime(.16,t+.055);master.gain.exponentialRampToValueAtTime(.0001,t+1.05);lp.type='lowpass';lp.frequency.setValueAtTime(620,t);lp.frequency.exponentialRampToValueAtTime(180,t+1.05);const curve=new Float32Array(1024);for(let i=0;i<curve.length;i++){const x=i*2/(curve.length-1)-1;curve[i]=(1.8*x)/(1+1.25*Math.abs(x))}shaper.curve=curve;for(const[freq,det]of[[91,-8],[118,5],[147,-3]]){const o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*.62,t+.85);o.detune.value=det;o.connect(shaper);o.start(t);o.stop(t+1.08)}shaper.connect(lp);lp.connect(master);master.connect(c.destination)}
 function geeseAlive(){const e=document.querySelector('#geeseLeft');const n=Number((e?.textContent.match(/\d+/)||[0])[0]);return n>0&&gameActive()}
 function scheduleHonk(){setTimeout(()=>{if(geeseAlive()&&Math.random()<.78)demonicHonk();scheduleHonk()},3600+Math.random()*4700)}scheduleHonk();
-function suspendMovement({resetJump=false}={}){movePointer=null;sprintPointer=null;moving=false;sprinting=false;stopTrack(true);stopLanding();if(resetJump){jumping=false;jumpY=0;jumpVY=0;jumpFrameTime=0}}
+function suspendMovement({resetJump=false}={}){const oldMove=movePointer,oldSprint=sprintPointer;movePointer=null;sprintPointer=null;moving=false;sprinting=false;stopTrack(true);stopLanding();if(oldMove!==null&&pad?.hasPointerCapture?.(oldMove)){try{pad.releasePointerCapture(oldMove)}catch{}}if(oldSprint!==null&&sprintBtn?.hasPointerCapture?.(oldSprint)){try{sprintBtn.releasePointerCapture(oldSprint)}catch{}}if(resetJump){jumping=false;jumpY=0;jumpVY=0;jumpFrameTime=0}}
 // Pause/menu lifecycle is part of the audio state machine: no ghost footsteps under overlays.
 // Preserve airborne state across pause/background interruptions because game.js preserves the
 // physical jump too. Only a new run is allowed to discard that state.
