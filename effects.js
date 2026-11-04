@@ -14,6 +14,7 @@ for(const a of[walk,run,gravel]){a.__gwtManagedAudio=true;a.preload='auto';a.pla
 let moving=false,sprinting=false,jumping=false,current=null,unlocked=false,movePointer=null,sprintPointer=null,gamePaused=false;
 // Once physics has reported a stopped session, do not restart audio under the death overlay.
 let physicsPlaying=true;
+let wasPhysicsPlaying=true;
 // Invalidate pending Safari play() promises on every stop/restart, even for the same track.
 let playbackGeneration=0;
 let jumpY=0,jumpVY=0,jumpFrameTime=0;
@@ -123,7 +124,13 @@ window.addEventListener('gwt:ground-state',event=>{
  const {grounded,playing}=event.detail||{};
  physicsGrounded=grounded===true;
  physicsPlaying=Boolean(playing);
- if(!playing){moving=false;sprinting=false;stopTrack(true);stopLanding();return}
+ if(!playing){
+  // Ground-state events continue during paused/dead frames. Cancel landing once
+  // on the transition, not on every frame (repeated seeks hurt mobile Safari).
+  if(wasPhysicsPlaying)stopLanding();
+  moving=false;sprinting=false;stopTrack(true);wasPhysicsPlaying=false;return
+ }
+ wasPhysicsPlaying=true;
  if(!grounded){
    // Only transition into airborne once. Repeated physics frames must not seek
    // the landing sample on every tick (a costly operation on mobile Safari).
