@@ -62,7 +62,7 @@ if(pad){
  pad.addEventListener('pointerdown',e=>{
  // The first active finger owns the joystick until it releases. A second touch
  // must not steal capture or leave the original finger unable to stop footsteps.
- if(movePointer!==null)return;
+ if(movePointer!==null||!gameActive())return;
  movePointer=e.pointerId;
  try{pad.setPointerCapture(e.pointerId)}catch{}
  readMove(e)
@@ -74,7 +74,7 @@ if(pad){
 }
 const sprintBtn=document.querySelector('#sprint');
 if(sprintBtn){
- sprintBtn.addEventListener('pointerdown',e=>{if(sprintPointer!==null&&e.pointerId!==sprintPointer)return;sprintPointer=e.pointerId;try{sprintBtn.setPointerCapture(e.pointerId)}catch{}sprinting=true;syncMovement()},{capture:true});
+ sprintBtn.addEventListener('pointerdown',e=>{if(!gameActive()||(sprintPointer!==null&&e.pointerId!==sprintPointer))return;sprintPointer=e.pointerId;try{sprintBtn.setPointerCapture(e.pointerId)}catch{}sprinting=true;syncMovement()},{capture:true});
  // A captured iPhone touch may emit pointerleave while the finger is still physically held.
  // Only the finger that started sprint may end sprint; unrelated multitouch releases are ignored.
  const stopSprint=e=>{if(sprintPointer===null||e.pointerId!==sprintPointer)return;sprintPointer=null;sprinting=false;syncMovement()};
