@@ -35,6 +35,21 @@ const checks = [
     assert.ok(landing.includes('nativePlay.call(gravel)'));
     assert.ok(!/noiseBurst\(|createOscillator\(/.test(landing));
   }],
+  ['gameplay and audio agree on the joystick deadzone', () => {
+    // Both controllers must use the same threshold or footsteps can play while
+    // the player is stationary (or stay silent while the player is moving).
+    const gameDeadzone = game.match(/activeStick=Math\.hypot\(mx,my\)>(\.[0-9]+)/);
+    const audioDeadzone = effects.match(/moving=Math\.min\(42,Math\.hypot\(x,y\)\)\/42>(\.[0-9]+)/);
+    assert.ok(gameDeadzone, 'gameplay joystick deadzone missing');
+    assert.ok(audioDeadzone, 'audio joystick deadzone missing');
+    assert.equal(Number(audioDeadzone[1]), Number(gameDeadzone[1]));
+  }],
+  ['movement remains silent during airborne physics frames', () => {
+    assert.match(effects, /if\(!grounded\)\{/);
+    assert.match(effects, /if\(!jumping\)\{jumping=true;stopTrack\(true\);stopLanding\(\)\}/);
+    assert.match(effects, /if\(jumping\)\{jumping=false;[\s\S]*?landingImpact\(\)\}/);
+    assert.match(game, /activeStick\?[-\w*]+/);
+  }],
   ['blood, low honks, weapon recordings and blood moon remain present', () => {
     assert.ok(effects.includes('splashBlood()'));
     assert.ok(effects.includes('BITE_HONK_COOLDOWN_MS'));
