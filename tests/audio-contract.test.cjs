@@ -10,6 +10,19 @@ const checks = [
   ['recorded walk/run/landing assets remain wired', () => {
     for (const asset of ['mixkit-footsteps-on-tall-grass-532', 'thumblegray-running-on-the-floor-359909', 'freesound_community-footsteps-dirt-gravel-6823']) assert.ok(effects.includes(asset));
   }],
+  ['recorded local audio files exist and are nonempty', () => {
+    // A source reference alone is insufficient: renamed/missing media would pass
+    // the older checks but silently break footsteps or weapons on iPhone.
+    for (const source of [effects, game]) {
+      for (const match of source.matchAll(/['"`]((?:\\.\\/)[^'"`]+\\.(?:wav|mp3|ogg))['"`]/gi)) {
+        const asset = decodeURIComponent(match[1]).replace(/^\\.\\//, '');
+        const fullPath = path.resolve(root, asset);
+        assert.ok(fullPath.startsWith(root + path.sep), 'audio path escapes repository: ' + asset);
+        assert.ok(fs.existsSync(fullPath), 'missing audio asset: ' + asset);
+        assert.ok(fs.statSync(fullPath).size > 0, 'empty audio asset: ' + asset);
+      }
+    }
+  }],
   ['movement gated by activity, joystick and jump', () => assert.match(effects, /!gameActive\(\)\|\|!moving\|\|jumping/)],
   ['sprint selects recorded running track', () => assert.match(effects, /playTrack\(sprinting\?run:walk\)/)],
   ['joystick and sprint release are pointer-owned', () => {
