@@ -40,7 +40,12 @@ async function playTrack(a){
   await nativePlay.call(a);
   // Safari may settle play() after a pause, jump, sprint switch or background event.
   // Never allow an obsolete asynchronous start to leave an audible footstep loop.
-  if(generation!==playbackGeneration)return;
+  if(generation!==playbackGeneration){
+   // An obsolete Safari play() can settle after stopTrack(). Silence its track,
+   // but never interrupt a newer request that legitimately owns the same element.
+   if(current!==a){try{a.pause();a.currentTime=0}catch{}}
+   return;
+  }
   if(current!==a||!gameActive()||!moving||jumping||(sprinting?run:walk)!==a){
    a.pause();a.currentTime=0;
    if(current===a)current=null;
