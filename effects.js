@@ -125,7 +125,10 @@ function landingImpact(){
     }
    }).catch(()=>{});
   }
-  setTimeout(()=>{if(generation===landingGeneration)stopLanding()},170);
+  // Let the recorded gravel impact finish naturally; a 170 ms cutoff clipped its tail.
+  // A bounded fallback still prevents a stalled Safari media element from looping forever.
+  const maxLandingMs=900;
+  setTimeout(()=>{if(generation===landingGeneration)stopLanding()},maxLandingMs);
  }catch{}
  noiseBurst(.12,.08,420,150);
 }
