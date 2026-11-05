@@ -13,15 +13,25 @@ const checks = [
   ['recorded local audio files exist and are nonempty', () => {
     // A source reference alone is insufficient: renamed/missing media would pass
     // the older checks but silently break footsteps or weapons on iPhone.
+    const discovered = new Set();
     for (const source of [effects, game]) {
       for (const match of source.matchAll(/['"`]((?:\.\/)[^'"`]+\.(?:wav|mp3|ogg))['"`]/gi)) {
         const asset = decodeURIComponent(match[1]).replace(/^\.\//, '');
+        discovered.add(asset);
         const fullPath = path.resolve(root, asset);
         assert.ok(fullPath.startsWith(root + path.sep), 'audio path escapes repository: ' + asset);
         assert.ok(fs.existsSync(fullPath), 'missing audio asset: ' + asset);
         assert.ok(fs.statSync(fullPath).size > 0, 'empty audio asset: ' + asset);
       }
     }
+    // Prevent a future source refactor from making this test pass without checking anything.
+    for (const required of [
+      'mixkit-footsteps-on-tall-grass-532.wav',
+      'thumblegray-running-on-the-floor-359909 2.mp3',
+      'freesound_community-footsteps-dirt-gravel-6823.mp3',
+      'Gun 1.wav',
+      'gun-cocking-04.wav',
+    ]) assert.ok(discovered.has(required), 'recorded audio not discovered by asset test: ' + required);
   }],
   ['movement gated by activity, joystick and jump', () => assert.match(effects, /!gameActive\(\)\|\|!moving\|\|jumping/)],
   ['sprint selects recorded running track', () => assert.match(effects, /playTrack\(sprinting\?run:walk\)/)],
