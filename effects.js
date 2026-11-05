@@ -82,7 +82,12 @@ if(pad){
  },{capture:true});
  // Do not depend on e.buttons for touch. Safari can report buttons=0 during an active touch drag.
  pad.addEventListener('pointermove',e=>{if(movePointer===e.pointerId)readMove(e)},{capture:true});
- const stop=e=>{if(e&&movePointer!==null&&e.pointerId!==movePointer)return;movePointer=null;moving=false;stopTrack(true)};
+ const stop=e=>{
+  // Window-level releases fire for every finger, including camera and sprint.
+  // Only the joystick's owning finger may stop movement audio.
+  if(movePointer===null||!e||e.pointerId!==movePointer)return;
+  movePointer=null;moving=false;stopTrack(true)
+ };
  for(const ev of['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(ev,stop,{capture:true});
  // If Safari drops pointer capture during a system gesture, the release can
  // arrive on window rather than the pad. Never leave a walking loop latched.
