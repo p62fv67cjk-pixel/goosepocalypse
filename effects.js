@@ -130,7 +130,8 @@ function landingImpact(){
   const maxLandingMs=900;
   setTimeout(()=>{if(generation===landingGeneration)stopLanding()},maxLandingMs);
  }catch{}
- noiseBurst(.12,.08,420,150);
+ // The recorded gravel impact is the landing effect. Do not layer a synthetic
+ // oscillator/noise burst over it: on iPhone it sounds like an arcade chirp.
 }
 const jumpBtn=document.querySelector('#jump');
 jumpBtn?.addEventListener('pointerdown',()=>{if(jumping||!gameActive()||(authoritativeGroundState&&!physicsGrounded))return;jumping=true;jumpY=0;jumpVY=5.8;jumpFrameTime=performance.now();stopTrack(true);stopLanding();jumpWhoosh()},{capture:true});
