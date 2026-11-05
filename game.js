@@ -112,17 +112,6 @@ for(const type of ['pointerup','pointercancel']){
  window.addEventListener(type,releaseSprint,{capture:true});
  window.addEventListener(type,releaseCamera,{capture:true});
 }
-function clearInterruptedControls(){
- const jp=joystickPointer,sp=sprintPointer,cp=cameraPointer;
- joystickPointer=sprintPointer=cameraPointer=null;
- mx=my=0;sprint=false;stick.style.transform="";
- for(const [element,id] of [[pad,jp],[sprintButton,sp],[C,cp]]){
-  if(id!==null){try{if(element.hasPointerCapture(id))element.releasePointerCapture(id)}catch{}}
- }
-}
-window.addEventListener('blur',clearInterruptedControls);
-window.addEventListener('pagehide',clearInterruptedControls);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)clearInterruptedControls()});
 $("#jump").onpointerdown=()=>{if(!playing||paused||!onGround)return;vy=5.8;onGround=false};
 function reload(){if(reloading||ammo===maxAmmo)return;audioReady();sfx("reload");reloading=true;let token=run;say("RELOADING",600);setTimeout(()=>{if(run===token){ammo=maxAmmo;reloading=false}},hero==="Mummy"?700:700)}function kill(g,team=false){if(!geese.includes(g))return;S.remove(g);geese.splice(geese.indexOf(g),1);score+=g.userData.type==="boss"?1000:g.userData.type==="brute"?300:100;if(team)say(`${mate.userData.name.toUpperCase()} GOT ONE!`,400);if(!geese.length&&pending<=0&&!nextWave){nextWave=true;wave++;let token=run;setTimeout(()=>{if(run===token&&playing)spawn()},1200)}}
 const ray=new THREE.Raycaster();function fire(){if(!playing||paused||reloading)return;audioReady();if(ammo<=0)return reload();sfx("shot");ammo--;ray.setFromCamera(new THREE.Vector2(),cam);let hit=ray.intersectObjects(geese,true)[0];if(!hit)return;let g=hit.object;while(g.parent&&!geese.includes(g))g=g.parent;if(!geese.includes(g))return;g.userData.hp-=(hero==="Phoenix"?1.55:1.2)*(difficulty==="easy"?1.25:difficulty==="hard"?.9:1);burst(hit.point);if(g.userData.hp<=0)kill(g)}$("#fire").onpointerdown=fire;$("#reload").onpointerdown=reload;$("#pause").onclick=()=>{paused=true;releaseInterruptedControls();$("#pauseMenu").style.display="flex"};$(".resume").onclick=()=>{paused=false;$("#pauseMenu").style.display="none"};function releaseInterruptedControls(){// Clear ownership before releasing capture: lostpointercapture fires synchronously on some browsers.
