@@ -83,7 +83,10 @@ if(pad){
  // Do not depend on e.buttons for touch. Safari can report buttons=0 during an active touch drag.
  pad.addEventListener('pointermove',e=>{if(movePointer===e.pointerId)readMove(e)},{capture:true});
  const stop=e=>{if(e&&movePointer!==null&&e.pointerId!==movePointer)return;movePointer=null;moving=false;stopTrack(true)};
- for(const ev of['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(ev,stop,{capture:true})
+ for(const ev of['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(ev,stop,{capture:true});
+ // If Safari drops pointer capture during a system gesture, the release can
+ // arrive on window rather than the pad. Never leave a walking loop latched.
+ for(const ev of['pointerup','pointercancel'])window.addEventListener(ev,stop,{capture:true})
 }
 const sprintBtn=document.querySelector('#sprint');
 if(sprintBtn){
@@ -92,6 +95,9 @@ if(sprintBtn){
  // Only the finger that started sprint may end sprint; unrelated multitouch releases are ignored.
  const stopSprint=e=>{if(sprintPointer===null||e.pointerId!==sprintPointer)return;sprintPointer=null;sprinting=false;syncMovement()};
  for(const ev of['pointerup','pointercancel','lostpointercapture'])sprintBtn.addEventListener(ev,stopSprint,{capture:true});
+ // Match joystick cleanup for uncaptured iOS releases. An unrelated finger
+ // cannot cancel sprint because stopSprint checks its owning pointer ID.
+ for(const ev of['pointerup','pointercancel'])window.addEventListener(ev,stopSprint,{capture:true});
 }
 function noiseBurst(duration,peak,startHz,endHz){const c=ensureCtx();if(!c)return;const n=Math.floor(c.sampleRate*duration),b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++){const t=i/n;d[i]=(Math.random()*2-1)*Math.sin(Math.PI*t)*Math.pow(1-t,.45)}const src=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();src.buffer=b;f.type='lowpass';f.frequency.setValueAtTime(startHz,c.currentTime);f.frequency.exponentialRampToValueAtTime(endHz,c.currentTime+duration);g.gain.setValueAtTime(.0001,c.currentTime);g.gain.exponentialRampToValueAtTime(peak,c.currentTime+.025);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+duration);src.connect(f);f.connect(g);g.connect(c.destination);src.start()}
 function jumpWhoosh(){noiseBurst(.34,.2,1350,420)}
