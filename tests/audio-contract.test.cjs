@@ -14,8 +14,8 @@ const checks = [
     // A source reference alone is insufficient: renamed/missing media would pass
     // the older checks but silently break footsteps or weapons on iPhone.
     for (const source of [effects, game]) {
-      for (const match of source.matchAll(/['"`]((?:\\.\\/)[^'"`]+\\.(?:wav|mp3|ogg))['"`]/gi)) {
-        const asset = decodeURIComponent(match[1]).replace(/^\\.\\//, '');
+      for (const match of source.matchAll(/['"`]((?:\.\/)[^'"`]+\.(?:wav|mp3|ogg))['"`]/gi)) {
+        const asset = decodeURIComponent(match[1]).replace(/^\.\//, '');
         const fullPath = path.resolve(root, asset);
         assert.ok(fullPath.startsWith(root + path.sep), 'audio path escapes repository: ' + asset);
         assert.ok(fs.existsSync(fullPath), 'missing audio asset: ' + asset);
