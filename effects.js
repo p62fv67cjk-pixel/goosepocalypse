@@ -133,7 +133,10 @@ window.addEventListener('gwt:ground-state',event=>{
   // Ground-state events continue during paused/dead frames. Cancel landing once
   // on the transition, not on every frame (repeated seeks hurt mobile Safari).
   if(wasPhysicsPlaying)stopLanding();
-  moving=false;sprinting=false;stopTrack(true);wasPhysicsPlaying=false;return
+  // A death or pause ends touch ownership as well as audio playback. Otherwise
+  // an old captured joystick finger can resume footsteps after the menu closes.
+  if(wasPhysicsPlaying)suspendMovement();
+  wasPhysicsPlaying=false;return
  }
  wasPhysicsPlaying=true;
  if(!grounded){
