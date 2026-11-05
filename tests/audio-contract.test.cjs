@@ -1,0 +1,49 @@
+// Run with: node tests/audio-contract.test.cjs
+// Source-level regression guard. Does not replace Safari/iPhone playback testing.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const effects = fs.readFileSync(path.join(root, 'effects.js'), 'utf8');
+const game = fs.readFileSync(path.join(root, 'game.js'), 'utf8');
+const checks = [
+  ['recorded walk/run/landing assets remain wired', () => {
+    for (const asset of ['mixkit-footsteps-on-tall-grass-532', 'thumblegray-running-on-the-floor-359909', 'freesound_community-footsteps-dirt-gravel-6823']) assert.ok(effects.includes(asset));
+  }],
+  ['movement gated by activity, joystick and jump', () => assert.match(effects, /!gameActive\(\)\|\|!moving\|\|jumping/)],
+  ['sprint selects recorded running track', () => assert.match(effects, /playTrack\(sprinting\?run:walk\)/)],
+  ['joystick and sprint release are pointer-owned', () => {
+    assert.match(effects, /e\.pointerId!==movePointer/);
+    assert.match(effects, /e\.pointerId!==sprintPointer/);
+    assert.match(game, /e\.pointerId!==joystickPointer/);
+  }],
+  ['touch cancellation and page interruption are handled', () => {
+    for (const source of [effects, game]) {
+      assert.ok(source.includes('pointercancel'));
+      assert.ok(source.includes('visibilitychange'));
+      assert.ok(source.includes('pagehide'));
+    }
+  }],
+  ['game physics determines landing and jump gating', () => {
+    assert.ok(effects.includes('gwt:ground-state'));
+    assert.ok(game.includes("new CustomEvent('gwt:ground-state'"));
+    assert.match(effects, /authoritativeGroundState&& !physicsGrounded|authoritativeGroundState&&!physicsGrounded/);
+  }],
+  ['recorded landing is nonlooping and synthetic landing overlay absent', () => {
+    assert.match(effects, /gravel\.loop=false/);
+    const landing = effects.split('function landingImpact()')[1]?.split('const jumpBtn=')[0] || '';
+    assert.ok(landing.includes('nativePlay.call(gravel)'));
+    assert.ok(!/noiseBurst\(|createOscillator\(/.test(landing));
+  }],
+  ['blood, low honks, weapon recordings and blood moon remain present', () => {
+    assert.ok(effects.includes('splashBlood()'));
+    assert.ok(effects.includes('BITE_HONK_COOLDOWN_MS'));
+    assert.ok(effects.includes('demonicHonk()'));
+    for (const name of ['gunBuffer', 'reloadBuffer', 'bloodMoon']) assert.ok(game.includes(name));
+  }],
+];
+for (const [name, check] of checks) {
+  check();
+  console.log('PASS', name);
+}
+console.log(checks.length + ' source-level audio/gameplay contract checks passed');
