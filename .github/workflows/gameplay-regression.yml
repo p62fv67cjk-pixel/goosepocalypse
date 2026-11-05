@@ -1,0 +1,26 @@
+name: Gameplay regression checks
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audio-and-syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run recorded-audio and gameplay contract checks
+        run: node tests/audio-contract.test.cjs
+      - name: Validate browser module syntax without executing CDN imports
+        run: node --input-type=module --check < game.js
+      - name: Validate effects controller syntax
+        run: node --check effects.js
