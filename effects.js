@@ -47,7 +47,7 @@ async function playTrack(a){
    if(current!==a){try{a.pause();a.currentTime=0}catch{}}
    return;
   }
-  if(current!==a||!gameActive()||!moving||jumping||(sprinting?run:walk)!==a){
+  if(current!==a||!gameActive()||!moving||jumping||(authoritativeGroundState&&!physicsGrounded)||(sprinting?run:walk)!==a){
    a.pause();a.currentTime=0;
    if(current===a)current=null;
   }
