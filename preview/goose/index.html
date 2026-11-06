@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101927"><title>Geese With Teeth | 3D Goose Lab</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#101927;color:#f5f4e9;font-family:system-ui,-apple-system,sans-serif}header{position:absolute;top:env(safe-area-inset-top);left:0;right:0;padding:14px 18px;z-index:2;pointer-events:none}h1{font-size:21px;margin:0}small{color:#c7d4e1}#stage{height:100dvh;width:100vw;display:block;touch-action:none}footer{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 12px);left:12px;right:12px;display:flex;justify-content:center;flex-wrap:wrap;gap:8px}button,a{border:1px solid #ffffff55;border-radius:24px;padding:12px 15px;background:#22354a;color:white;font-size:14px;font-weight:700;text-decoration:none}button.active{background:#ad4351}#status{position:absolute;top:calc(env(safe-area-inset-top) + 66px);left:18px;color:#e8d6b0;font-size:12px}#error{position:absolute;top:35%;left:8%;right:8%;text-align:center;color:#ffbbbb}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script></head>
+<body><header><h1>🪿 GOOSE LAB <small>v01</small></h1><small>Original procedural goose • drag to rotate • pinch to zoom</small></header><div id="status">Loading 3D goose…</div><div id="error" role="alert"></div><canvas id="stage"></canvas>
+<footer><button data-action="idle" class="active">Idle</button><button data-action="walk">Walk</button><button data-action="attack">Attack</button><button id="export">Save GLB</button><a href="../../index.html">Game</a></footer>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+const canvas=document.querySelector('#stage'),status=document.querySelector('#status'),error=document.querySelector('#error');
+try{
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.shadowMap.enabled=true;
+const scene=new THREE.Scene();scene.background=new THREE.Color('#172538');scene.fog=new THREE.Fog('#172538',12,24);
+const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,.1,100);camera.position.set(4,2.9,6.5);
+const controls=new OrbitControls(camera,canvas);controls.target.set(0,1.25,0);controls.enableDamping=true;controls.minDistance=3;controls.maxDistance=12;controls.maxPolarAngle=Math.PI/2.05;
+scene.add(new THREE.HemisphereLight(0xddeeff,0x3c5068,2.1));
+const sun=new THREE.DirectionalLight(0xffe7c4,3);sun.position.set(4,8,5);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+const floor=new THREE.Mesh(new THREE.CylinderGeometry(3.4,3.5,.18,64),new THREE.MeshStandardMaterial({color:0x40576a,roughness:.9}));floor.position.y=-.12;floor.receiveShadow=true;scene.add(floor);
+const goose=new THREE.Group();goose.name='GooseWithTeeth_Original_v01';scene.add(goose);
+const white=new THREE.MeshStandardMaterial({color:0xf6f3e5,roughness:.83}),feather=new THREE.MeshStandardMaterial({color:0xdad9cb,roughness:.88}),orange=new THREE.MeshStandardMaterial({color:0xe77e2e,roughness:.72}),dark=new THREE.MeshStandardMaterial({color:0x111b24,roughness:.35}),tooth=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.55});
+function ell(parent,name,x,y,z,sx,sy,sz,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),mat);m.name=name;m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;parent.add(m);return m}
+ell(goose,'Body',0,1.18,0,.69,.53,.95,white);
+ell(goose,'Chest',0,1.25,.55,.53,.46,.48,white);
+const neck=new THREE.Group();neck.position.set(0,1.47,.59);goose.add(neck);
+ell(neck,'Neck',0,.38,0,.22,.68,.22,white);
+ell(neck,'Head',0,.99,.07,.36,.35,.35,white);
+const upper=ell(neck,'UpperBeak',0,.85,.49,.27,.12,.46,orange);
+const lower=ell(neck,'LowerBeak',0,.70,.49,.24,.075,.40,orange);
+for(const side of [-1,1]){
+ell(neck,'Eye'+side,side*.285,1.045,.25,.071,.083,.075,dark);
+ell(goose,'Wing'+side,side*.61,1.31,-.10,.17,.27,.63,feather).rotation.z=side*.16;
+for(let i=0;i<3;i++)ell(goose,'WingFeather'+side+'_'+i,side*(.63+i*.035),1.23,-.32-i*.16,.12,.14,.29,white);
+}
+const feet=[];
+for(const side of [-1,1]){const foot=new THREE.Group();foot.position.set(side*.36,.72,.12);goose.add(foot);ell(foot,'Leg',0,-.24,0,.09,.32,.09,orange);ell(foot,'WebbedFoot',0,-.52,.19,.23,.075,.34,orange);feet.push(foot)}
+for(let i=0;i<5;i++){const x=(i-2)*.095;const t=new THREE.Mesh(new THREE.ConeGeometry(.039,.11,5),tooth);t.name='Tooth'+i;t.position.set(x,.745,.78);t.rotation.x=Math.PI;neck.add(t)}
+for(let i=0;i<3;i++)ell(goose,'TailFeather'+i,(i-1)*.17,1.47,-.84,.17,.15,.37,white).rotation.x=-.35;
+let action='idle';document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{action=b.dataset.action;document.querySelectorAll('[data-action]').forEach(x=>x.classList.toggle('active',x===b));status.textContent=action.toUpperCase()+' animation • procedural preview'});
+document.querySelector('#export').onclick=()=>{const exporter=new GLTFExporter();const copy=goose.clone(true);copy.position.set(0,0,0);copy.rotation.set(0,0,0);exporter.parse(copy,data=>{const blob=new Blob([data],{type:'model/gltf-binary'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='goose-with-teeth-v01.glb';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)},e=>{error.textContent='GLB export failed: '+e.message},{binary:true,onlyVisible:true})};
+let t=0,prev=performance.now();function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-prev)/1000,.05);prev=now;t+=dt;const speed=action==='walk'?9:action==='attack'?14:2;goose.position.y=action==='walk'?.045*Math.abs(Math.sin(t*speed)):Math.sin(t*2)*.018;goose.rotation.y=action==='attack'?Math.sin(t*speed)*.10:0;neck.rotation.x=action==='attack'?Math.sin(t*speed)*.34:Math.sin(t*2)*.025;lower.position.y=action==='attack'?.65+Math.sin(t*speed)*.065:.70;feet[0].rotation.x=action==='walk'?Math.sin(t*speed)*.55:0;feet[1].rotation.x=action==='walk'?-Math.sin(t*speed)*.55:0;controls.update();renderer.render(scene,camera)}requestAnimationFrame(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+status.textContent='Ready • choose an animation or Save GLB';
+}catch(e){error.textContent='3D preview could not start: '+e.message;status.textContent='Preview unavailable';console.error(e)}
+</script></body></html>
