@@ -73,6 +73,12 @@ const checks = [
     assert.match(effects, /if\(jumping\)\{jumping=false;[\s\S]*?landingImpact\(\)\}/);
     assert.match(game, /activeStick\?[-\w*]+/);
   }],
+  ['new game clears stale blood and bite-honk history', () => {
+    const startHandler = effects.match(/document\\.querySelector\\('\.start'\\)\\?\\.addEventListener\\('click',[^\
+]+/);
+    assert.ok(startHandler, 'start handler missing');
+    for (const reset of ['lastHp=null', 'lastBlood=0', 'lastBiteHonk=-Infinity', 'bloodGeneration++', "blood.classList.remove('hit')", "blood.innerHTML=''"]) assert.ok(startHandler[0].includes(reset), 'missing blood reset: ' + reset);
+  }],
   ['blood, low honks, weapon recordings and blood moon remain present', () => {
     assert.ok(effects.includes('splashBlood()'));
     assert.ok(effects.includes('BITE_HONK_COOLDOWN_MS'));
