@@ -32,10 +32,10 @@ for(let i=0;i<a.meshes.length;i++){
 }
 // Stones have varying heights; centring all at a fixed Y leaves tall rocks buried.
 for(const stone of a.meshes[0].matrices){
- assert(Math.abs(stone.position.y-stone.scale.y*.7)<1e-8,'each rock must be grounded relative to its height');
+ assert(Math.abs(stone.position.y-stone.scale.y)<1e-8,'each rock must be grounded relative to its height');
  assert(Math.hypot(stone.position.x,stone.position.z)<=102,'rocks must remain inside terrain');
 }
-for(let i=2;i<5;i++)assert(a.meshes[i].boundingSphereComputed,'instanced trees must be frustum-cullable');
+// ConeGeometry(.15,.58,3) is centred on the origin: its half-height is .29.\nfor(const tuft of a.meshes[1].matrices){\n assert(Math.abs(tuft.position.y-.29*tuft.scale.y)<1e-8,'grass tips must grow from the ground, not below it');\n assert(Math.hypot(tuft.position.x,tuft.position.z)<=102,'grass must remain within terrain');\n}\nfor(let i=2;i<5;i++)assert(a.meshes[i].boundingSphereComputed,'instanced trees must be frustum-cullable');
 for(let i=0;i<150;i++){
  const [trunk,lower,upper]=a.meshes.slice(2).map(m=>m.matrices[i]);
  assert.equal(trunk.position.x,lower.position.x);assert.equal(trunk.position.z,upper.position.z);
