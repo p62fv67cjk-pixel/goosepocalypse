@@ -56,7 +56,12 @@ async function playTrack(a){
   if(generation===playbackGeneration&&current===a)current=null;
  }
 }
-function syncMovement(){if(!gameActive()||!moving||jumping){stopTrack(true);return}playTrack(sprinting?run:walk)}
+function syncMovement(){
+ // Physics is authoritative: never start footsteps during the gap between an
+ // airborne state report and a joystick/sprint event on mobile Safari.
+ if(!gameActive()||!moving||jumping||(authoritativeGroundState&&!physicsGrounded)){stopTrack(true);return}
+ playTrack(sprinting?run:walk)
+}
 let ctx=null;
 function ensureCtx(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!ctx)ctx=new AC();if(ctx.state==='suspended')ctx.resume().catch(()=>{});return ctx}catch{return null}}
 function unlock(){
