@@ -20,7 +20,7 @@ button.id='musicToggle';button.textContent='♫ OFF';button.setAttribute('aria-l
 Object.assign(button.style,{position:'fixed',right:'12px',top:'calc(env(safe-area-inset-top) + 115px)',zIndex:'16',width:'54px',height:'34px',borderRadius:'18px',border:'1px solid #ffffff88',background:'#111b',color:'#fff',fontWeight:'900',fontSize:'10px',touchAction:'manipulation'});
 document.body.appendChild(button);
 function paint(){const audible=wanted&&!track.paused;button.textContent=audible?'♫ ON':wanted?'♫ TAP':'♫ OFF';button.setAttribute('aria-pressed',String(audible))}
-async function startMusic({restart=false}={}){wanted=true;if(starting)return;starting=true;try{if(restart)track.currentTime=0;await track.play()}catch{}finally{starting=false;paint()}}
+async function startMusic({restart=false}={}){wanted=true;if(starting)return;starting=true;try{if(restart)track.currentTime=0;await track.play()}catch{}finally{starting=false;if(!wanted)track.pause();paint()}}
 function stopMusic(){wanted=false;track.pause();paint()}
 button.addEventListener('click',e=>{e.stopPropagation();wanted?stopMusic():startMusic()});
 // PLAY is a guaranteed user gesture on iPhone. Restart the official track exactly once for each new run.
