@@ -27,8 +27,11 @@ const treeUpper=new THREE.InstancedMesh(new THREE.ConeGeometry(1.35,4.1,8),leaf,
 const treeTransform=new THREE.Object3D();
 for(let i=0;i<treeCount;i++){
  const a=sceneryRandom()*Math.PI*2,r=18+sceneryRandom()*78,x=Math.cos(a)*r,z=Math.sin(a)*r;
+ // Vary height, width and orientation without extra draw calls or random reloads.
+ // Scale each crown around its own base so smaller trees do not float above ground.
+ const height=.72+sceneryRandom()*.62,width=.75+sceneryRandom()*.55,turn=sceneryRandom()*Math.PI*2;
  for(const [mesh,y] of [[treeTrunks,2.25],[treeLower,5.1],[treeUpper,7.2]]){
-  treeTransform.position.set(x,y,z);treeTransform.rotation.set(0,0,0);treeTransform.scale.set(1,1,1);
+  treeTransform.position.set(x,y*height,z);treeTransform.rotation.set(0,turn,0);treeTransform.scale.set(width,height,width);
   treeTransform.updateMatrix();mesh.setMatrixAt(i,treeTransform.matrix);
  }
 }
