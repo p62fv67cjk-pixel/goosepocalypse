@@ -114,10 +114,12 @@ function noiseBurst(duration,peak,startHz,endHz){const c=ensureCtx();if(!c)retur
 function jumpWhoosh(){noiseBurst(.34,.2,1350,420)}
 // A delayed landing sample must not outlive a newer landing or a pause/background event.
 let landingGeneration=0;
-function stopLanding(){landingGeneration++;try{gravel.pause();gravel.currentTime=0}catch{}}
+let landingActive=false;
+function stopLanding(){landingGeneration++;landingActive=false;try{gravel.pause();gravel.currentTime=0}catch{}}
 function landingImpact(){
  if(!gameActive())return;
  stopLanding();
+ landingActive=true;
  const generation=landingGeneration;
  try{
   gravel.volume=.58;
@@ -126,9 +128,13 @@ function landingImpact(){
   if(started&&typeof started.then==='function'){
    started.then(()=>{
     // A late Safari play() resolution must not resurrect an old landing sound.
-    if(generation===landingGeneration&&(!gameActive()||jumping)){
-     stopLanding();
+    // A cancelled landing may finish its Safari play() request after pause().
+    // Silence it unless a newer landing now owns the same audio element.
+    if(generation!==landingGeneration){
+     if(!landingActive){try{gravel.pause();gravel.currentTime=0}catch{}}
+     return;
     }
+    if(!gameActive()||jumping)stopLanding();
    }).catch(()=>{});
   }
   // Let the recorded gravel impact finish naturally; a 170 ms cutoff clipped its tail.
