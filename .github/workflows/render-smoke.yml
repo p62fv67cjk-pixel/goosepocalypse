@@ -1,0 +1,33 @@
+name: Rendered gameplay smoke test
+on:
+  pull_request:
+    paths:
+      - 'game.js'
+      - 'index.html'
+      - 'effects.js'
+      - 'controls-fixes.js'
+      - 'soundtrack.js'
+      - 'tests/render-smoke.cjs'
+      - '.github/workflows/render-smoke.yml'
+  workflow_dispatch:
+jobs:
+  chromium-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Serve game and capture portrait/landscape
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/geese-http.log 2>&1 &
+          node tests/render-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gameplay-render-screenshots
+          path: test-artifacts/
+          if-no-files-found: warn
