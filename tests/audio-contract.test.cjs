@@ -35,6 +35,12 @@ const checks = [
   }],
   ['movement gated by activity, joystick and jump', () => assert.match(effects, /!gameActive\(\)\|\|!moving\|\|jumping/)],
   ['sprint selects recorded running track', () => assert.match(effects, /playTrack\(sprinting\?run:walk\)/)],
+  ['physics ground state blocks movement audio even between touch events', () => {
+    const sync = effects.split('function syncMovement()')[1]?.split('let ctx=null;')[0] || '';
+    assert.match(sync, /authoritativeGroundState\s*&&\s*!physicsGrounded/);
+    assert.match(sync, /stopTrack\(true\);return/);
+  }],
+
   ['joystick and sprint release are pointer-owned', () => {
     assert.match(effects, /e\.pointerId!==movePointer/);
     assert.match(effects, /e\.pointerId!==sprintPointer/);
