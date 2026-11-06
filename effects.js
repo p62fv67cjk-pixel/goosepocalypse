@@ -199,5 +199,5 @@ function suspendMovement({resetJump=false}={}){const oldMove=movePointer,oldSpri
 // physical jump too. Only a new run is allowed to discard that state.
 document.querySelector('#pause')?.addEventListener('click',()=>{gamePaused=true;suspendMovement()},{capture:true});
 document.querySelector('.resume')?.addEventListener('click',()=>{gamePaused=false;if(jumping)jumpFrameTime=performance.now();syncMovement()},{capture:true});
-document.querySelector('.start')?.addEventListener('click',()=>{physicsPlaying=true;physicsGrounded=true;gamePaused=false;suspendMovement({resetJump:true})},{capture:true});
+document.querySelector('.start')?.addEventListener('click',()=>{physicsPlaying=true;physicsGrounded=true;gamePaused=false;suspendMovement({resetJump:true});/* A fresh character's starting HP is not a goose bite. */lastHp=null;lastBlood=0;lastBiteHonk=-Infinity;bloodGeneration++;blood.classList.remove('hit');blood.innerHTML='';},{capture:true});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendMovement();else if(jumping)jumpFrameTime=performance.now()});window.addEventListener('pagehide',()=>suspendMovement());window.addEventListener('blur',()=>suspendMovement());
