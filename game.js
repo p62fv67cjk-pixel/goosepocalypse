@@ -30,6 +30,10 @@ for(let i=0;i<treeCount;i++){
  // Vary height, width and orientation without extra draw calls or random reloads.
  // Scale each crown around its own base so smaller trees do not float above ground.
  const height=.72+sceneryRandom()*.62,width=.75+sceneryRandom()*.55,turn=sceneryRandom()*Math.PI*2;
+ // Per-tree foliage tint breaks up uniform green silhouettes without new materials or draw calls.
+ // Apply the same tint to both crown layers; trunks retain their bark material.
+ const foliageTint=new THREE.Color().setRGB(.72+sceneryRandom()*.24,.78+sceneryRandom()*.20,.70+sceneryRandom()*.22);
+ treeLower.setColorAt(i,foliageTint);treeUpper.setColorAt(i,foliageTint);
  for(const [mesh,y] of [[treeTrunks,2.25],[treeLower,5.1],[treeUpper,7.2]]){
   treeTransform.position.set(x,y*height,z);treeTransform.rotation.set(0,turn,0);treeTransform.scale.set(width,height,width);
   treeTransform.updateMatrix();mesh.setMatrixAt(i,treeTransform.matrix);
@@ -37,6 +41,7 @@ for(let i=0;i<treeCount;i++){
 }
 for(const mesh of [treeTrunks,treeLower,treeUpper]){
  mesh.instanceMatrix.needsUpdate=true;
+ if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
  mesh.computeBoundingSphere(); // Ensure frustum culling covers the whole forest.
  S.add(mesh);
 }
