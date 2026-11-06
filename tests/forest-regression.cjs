@@ -30,6 +30,11 @@ for(let i=0;i<a.meshes.length;i++){
   for(const v of Object.values(matrix.scale))assert(v>0,'instance scales must be positive');
  }
 }
+// Stones have varying heights; centring all at a fixed Y leaves tall rocks buried.
+for(const stone of a.meshes[0].matrices){
+ assert(Math.abs(stone.position.y-stone.scale.y*.7)<1e-8,'each rock must be grounded relative to its height');
+ assert(Math.hypot(stone.position.x,stone.position.z)<=102,'rocks must remain inside terrain');
+}
 for(let i=2;i<5;i++)assert(a.meshes[i].boundingSphereComputed,'instanced trees must be frustum-cullable');
 for(let i=0;i<150;i++){
  const [trunk,lower,upper]=a.meshes.slice(2).map(m=>m.matrices[i]);
