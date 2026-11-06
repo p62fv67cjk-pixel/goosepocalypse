@@ -34,6 +34,12 @@ const checks = [
     ]) assert.ok(discovered.has(required), 'recorded audio not discovered by asset test: ' + required);
   }],
   ['movement gated by activity, joystick and jump', () => assert.match(effects, /!gameActive\(\)\|\|!moving\|\|jumping/)],
+  ['stopping movement cancels pending Safari play requests', () => {
+    const stop = effects.split('function stopTrack(reset=true)')[1]?.split('async function playTrack')[0] || '';
+    assert.match(stop, /playbackGeneration\+\+/);
+    assert.match(stop, /for\(const a of\[walk,run\]\)\{try\{a\.pause\(\)/);
+    assert.ok(!stop.includes('if(!a.paused)a.pause()'), 'pending play must be cancelled even while paused');
+  }],
   ['sprint selects recorded running track', () => assert.match(effects, /playTrack\(sprinting\?run:walk\)/)],
   ['physics ground state blocks movement audio even between touch events', () => {
     const sync = effects.split('function syncMovement()')[1]?.split('let ctx=null;')[0] || '';
