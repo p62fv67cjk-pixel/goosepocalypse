@@ -40,6 +40,11 @@ const checks = [
     assert.match(stop, /for\(const a of\[walk,run\]\)\{try\{a\.pause\(\)/);
     assert.ok(!stop.includes('if(!a.paused)a.pause()'), 'pending play must be cancelled even while paused');
   }],
+  ['delayed Safari playback checks physics before keeping footsteps alive', () => {
+    const play = effects.split('async function playTrack(a)')[1]?.split('function syncMovement()')[0] || '';
+    assert.ok(play.includes('(authoritativeGroundState&&!physicsGrounded)'), 'late play completion must recheck grounded physics');
+    assert.ok(play.includes('a.pause();a.currentTime=0'), 'invalid late playback must be silenced');
+  }],
   ['sprint selects recorded running track', () => assert.match(effects, /playTrack\(sprinting\?run:walk\)/)],
   ['physics ground state blocks movement audio even between touch events', () => {
     const sync = effects.split('function syncMovement()')[1]?.split('let ctx=null;')[0] || '';
