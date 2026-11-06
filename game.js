@@ -7,7 +7,15 @@ const moonHalo=new THREE.Mesh(new THREE.SphereGeometry(10.1,32,24),new THREE.Mes
 bloodMoon.add(moonHalo);
 const moonLight=new THREE.PointLight(0x9d1424,22,150);moonLight.position.set(0,0,0);bloodMoon.add(moonLight);
 bloodMoon.position.set(-27,37,-92);S.add(bloodMoon);
-let ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({color:0x19281f}));ground.rotation.x=-Math.PI/2;S.add(ground);
+// Mobile-friendly atmospheric detail: textured ground, stones, tufts and moonlit haze.
+const groundTexture=(()=>{const c=document.createElement("canvas");c.width=c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#243126";ctx.fillRect(0,0,128,128);for(let i=0;i<1500;i++){const x=Math.random()*128,y=Math.random()*128,l=Math.random()*12+12;ctx.fillStyle="rgba("+l+","+(l+13)+","+l+","+(Math.random()*.16)+")";ctx.fillRect(x,y,Math.random()*3+1,Math.random()*3+1)}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(44,44);t.colorSpace=THREE.SRGBColorSpace;return t})();
+let ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({color:0x788e78,map:groundTexture,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;S.add(ground);
+const stoneMat=new THREE.MeshStandardMaterial({color:0x414744,roughness:1}),grassMat=new THREE.MeshStandardMaterial({color:0x354832,roughness:1,side:THREE.DoubleSide});
+const stoneGeo=new THREE.DodecahedronGeometry(1,0),grassGeo=new THREE.ConeGeometry(.15,.58,3);
+const stones=new THREE.InstancedMesh(stoneGeo,stoneMat,100),grass=new THREE.InstancedMesh(grassGeo,grassMat,360),dummy=new THREE.Object3D();
+for(let i=0;i<460;i++){const a=Math.random()*Math.PI*2,r=7+Math.sqrt(Math.random())*95,x=Math.cos(a)*r,z=Math.sin(a)*r;dummy.position.set(x,0,z);dummy.rotation.set(0,Math.random()*Math.PI*2,0);if(i<100){const sc=.12+Math.random()*.42;dummy.scale.set(sc,.16+Math.random()*.22,sc);dummy.position.y=.09;dummy.updateMatrix();stones.setMatrixAt(i,dummy.matrix)}else{const sc=.6+Math.random()*1.2;dummy.scale.set(sc,sc,sc);dummy.position.y=.18*sc;dummy.updateMatrix();grass.setMatrixAt(i-100,dummy.matrix)}}
+stones.instanceMatrix.needsUpdate=true;grass.instanceMatrix.needsUpdate=true;S.add(stones,grass);
+const haze=new THREE.Mesh(new THREE.PlaneGeometry(190,190),new THREE.MeshBasicMaterial({color:0x87929c,transparent:true,opacity:.035,depthWrite:false,side:THREE.DoubleSide}));haze.rotation.x=-Math.PI/2;haze.position.y=.16;S.add(haze);
 const trunk=new THREE.MeshStandardMaterial({color:0x35241f}),leaf=new THREE.MeshStandardMaterial({color:0x10271b});for(let i=0;i<150;i++){let a=Math.random()*6.28,r=18+Math.random()*78,x=Math.cos(a)*r,z=Math.sin(a)*r,t=new THREE.Mesh(new THREE.CylinderGeometry(.13,.28,4.5,7),trunk);t.position.set(x,2.25,z);S.add(t);let c=new THREE.Mesh(new THREE.ConeGeometry(1.8,5.2,8),leaf);c.position.set(x,5.1,z);S.add(c);let c2=new THREE.Mesh(new THREE.ConeGeometry(1.35,4.1,8),leaf);c2.position.set(x,7.2,z);S.add(c2)}
 const geese=[],parts=[];let hero="Phoenix",difficulty="medium",mate=null,hp=100,maxHp=100,ammo=14,maxAmmo=14,wave=1,score=0,playing=false,paused=false,yaw=0,pitch=0,mx=0,my=0,vy=0,onGround=true,sprint=false,reloading=false,pending=0,nextWave=false,run=0,last=performance.now();
 let sfxCtx=null;
