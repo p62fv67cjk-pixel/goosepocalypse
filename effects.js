@@ -20,11 +20,12 @@ let playbackGeneration=0;
 let jumpY=0,jumpVY=0,jumpFrameTime=0;
 function gameActive(){const menu=document.querySelector('#menu'),pause=document.querySelector('#pauseMenu');return !document.hidden&&physicsPlaying&&!gamePaused&&menu&&getComputedStyle(menu).display==='none'&&(!pause||getComputedStyle(pause).display==='none')}
 function stopTrack(reset=true){
- // Ground-state events arrive every animation frame. Avoid repeatedly seeking and
- // pausing already-stopped media, which can churn Safari's audio pipeline.
+ // Ground-state events arrive every animation frame. Avoid repeatedly seeking
+ // already-stopped media, but always pause an owned track: Safari may still have
+ // a pending play() request even when HTMLMediaElement.paused is true.
  if(current===null&&walk.paused&&run.paused)return;
  playbackGeneration++;
- for(const a of[walk,run]){try{if(!a.paused)a.pause();if(reset)a.currentTime=0}catch{}}
+ for(const a of[walk,run]){try{a.pause();if(reset)a.currentTime=0}catch{}}
  current=null
 }
 async function playTrack(a){
