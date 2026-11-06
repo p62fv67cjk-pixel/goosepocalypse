@@ -1,0 +1,29 @@
+name: Build Blender Goose Assets
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/blender/**'
+      - '.github/workflows/build-goose-assets.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+      - name: Build goose GLB and BLEND
+        run: blender -b --python tools/blender/build_goose.py
+      - name: Upload downloadable 3D assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: goose-with-teeth-3d-assets
+          path: build/goose/
+          if-no-files-found: error
+          retention-days: 30
