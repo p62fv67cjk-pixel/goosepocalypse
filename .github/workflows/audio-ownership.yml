@@ -1,0 +1,23 @@
+name: Audio Ownership Regression
+on:
+  push:
+    paths:
+      - 'game.js'
+      - 'effects.js'
+      - 'tests/audio-ownership.test.cjs'
+      - '.github/workflows/audio-ownership.yml'
+  pull_request:
+    paths:
+      - 'game.js'
+      - 'effects.js'
+      - 'tests/audio-ownership.test.cjs'
+      - '.github/workflows/audio-ownership.yml'
+jobs:
+  audio-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/audio-ownership.test.cjs
