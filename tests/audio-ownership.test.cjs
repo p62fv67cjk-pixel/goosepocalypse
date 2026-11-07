@@ -9,7 +9,7 @@ const effects = fs.readFileSync(path.join(__dirname, '../effects.js'), 'utf8');
 
 test('recorded gunshot and reload sources remain wired to game', () => {
   assert.match(game, /Gun%201\.wav/);
-  assert.match(game, /Reload%201\.wav/);
+  assert.match(game, /gun-cocking-04\.wav/);
   assert.match(game, /playBuffer\(gunBuffer,recordedGunshot/);
   assert.match(game, /playBuffer\(reloadBuffer,recordedReload/);
 });
