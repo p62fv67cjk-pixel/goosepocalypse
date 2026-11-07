@@ -1,5 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/+esm";
 import {createArena} from "./arena-upgrade.js";
+import {makeGooseKit} from "./goose-rig.js";
+import {makeBurst} from "./particle-pool.js";
 const $=s=>document.querySelector(s),C=$("#game"),R=new THREE.WebGLRenderer({canvas:C,antialias:true,powerPreference:"high-performance"});R.setPixelRatio(Math.min(devicePixelRatio,1.35));R.outputColorSpace=THREE.SRGBColorSpace;const S=new THREE.Scene();S.background=new THREE.Color(0x10131b);S.fog=new THREE.FogExp2(0x202431,.012);const cam=new THREE.PerspectiveCamera(72,1,.1,120);cam.position.set(0,1.7,5);S.add(cam);S.add(new THREE.HemisphereLight(0x8399b4,0x160d0d,1.2));let ml=new THREE.DirectionalLight(0xffb6a0,2.8);ml.position.set(-12,18,9);S.add(ml);let rg=new THREE.PointLight(0xa11830,13,35);rg.position.set(12,7,-18);S.add(rg);
 const bloodMoon=new THREE.Group();
 const moonCore=new THREE.Mesh(new THREE.SphereGeometry(8,40,32),new THREE.MeshStandardMaterial({color:0x8e101c,emissive:0x9e0718,emissiveIntensity:1.25,roughness:1,metalness:0}));
@@ -49,6 +51,8 @@ for(const mesh of [treeTrunks,treeLower,treeUpper]){
 }
 const geese=[],parts=[];let hero="Phoenix",difficulty="medium",mate=null,hp=100,maxHp=100,ammo=14,maxAmmo=14,wave=1,score=0,playing=false,paused=false,yaw=0,pitch=0,mx=0,my=0,vy=0,onGround=true,sprint=false,reloading=false,pending=0,nextWave=false,run=0,last=performance.now();
 let sfxCtx=null;
+// Shared-geometry, pooled, animated geese and pooled hit sparks: see goose-rig.js and particle-pool.js.
+const gooseKit=makeGooseKit(THREE,{camera:cam}),emitBurst=makeBurst(THREE);
 const recordedGunshot=new Audio(new URL("./Gun%201.wav",import.meta.url).href);
 const recordedReload=new Audio(new URL("./gun-cocking-04.wav",import.meta.url).href);
 recordedGunshot.preload="auto";recordedReload.preload="auto";
@@ -66,40 +70,8 @@ function audioReady(){try{const AC=window.AudioContext||window.webkitAudioContex
 function sfx(kind){if(kind==="shot")playBuffer(gunBuffer,recordedGunshot,1);else if(kind==="reload")playBuffer(reloadBuffer,recordedReload,1)}
 const white=new THREE.MeshStandardMaterial({color:0xe9e5d9}),orange=new THREE.MeshStandardMaterial({color:0xe77616}),gum=new THREE.MeshStandardMaterial({color:0x7b1c2b});
 function goose(type="normal"){
- let g=new THREE.Group(),boss=type==="boss",fast=type==="fast",brute=type==="brute";
- const plum=new THREE.MeshStandardMaterial({color:boss?0x28252d:brute?0x454950:0xe7e2d7,roughness:.94});
- const featherMat=new THREE.MeshStandardMaterial({color:boss?0x17151d:brute?0x353a40:0xf7f0e4,roughness:.88});
- const dark=new THREE.MeshStandardMaterial({color:0x100b12,roughness:.55});
- const red=new THREE.MeshStandardMaterial({color:0xff061b,emissive:0xff0018,emissiveIntensity:3.8});
- const beakMat=new THREE.MeshStandardMaterial({color:boss?0x6f151d:0xd65a18,roughness:.55});
- const toothMat=new THREE.MeshStandardMaterial({color:0xfff1d7,roughness:.32});
- const body=new THREE.Mesh(new THREE.SphereGeometry(.62,20,14),plum);body.scale.set(1.02,.78,1.42);body.position.y=.8;g.add(body);
- // Tail fan feathers
- for(let i=-3;i<=3;i++){let f=new THREE.Mesh(new THREE.SphereGeometry(.19,9,7),featherMat);f.scale.set(.55,.45,1.65);f.position.set(i*.105,.98,1.02+Math.abs(i)*.025);f.rotation.x=-.18;f.rotation.y=i*.13;g.add(f)}
- // Layered wing coverts and long flight feathers on both sides
- for(let side of[-1,1]){
-  let wing=new THREE.Group();wing.position.set(side*.48,1.02,.04);wing.rotation.z=-side*.12;
-  for(let j=0;j<9;j++){let f=new THREE.Mesh(new THREE.SphereGeometry(.17,9,7),featherMat);f.scale.set(.58,.38,1.55);f.position.set(side*j*.065,-.12-j*.018,.38-j*.145);f.rotation.y=side*.18;wing.add(f)}
-  for(let j=0;j<6;j++){let f=new THREE.Mesh(new THREE.SphereGeometry(.14,8,6),plum);f.scale.set(.8,.48,1.25);f.position.set(side*j*.055,.06,.02-j*.12);wing.add(f)}
-  g.add(wing);
- }
- // Upright curved-looking neck and head
- let neck=new THREE.Mesh(new THREE.CylinderGeometry(.145,.22,.78,12),plum);neck.position.set(0,1.48,-.56);neck.rotation.x=-.22;g.add(neck);
- let head=new THREE.Mesh(new THREE.SphereGeometry(.29,16,12),plum);head.scale.set(1,.92,1.13);head.position.set(0,1.94,-.66);g.add(head);
- // Brow ridges and glowing eyes facing forward
- for(let side of[-1,1]){
-  let brow=new THREE.Mesh(new THREE.BoxGeometry(.22,.075,.11),dark);brow.position.set(side*.155,2.09,-.86);brow.rotation.z=side*.16;g.add(brow);
-  let socket=new THREE.Mesh(new THREE.SphereGeometry(.105,12,9),dark);socket.position.set(side*.155,1.99,-.91);g.add(socket);
-  let eye=new THREE.Mesh(new THREE.SphereGeometry(.071,12,9),red);eye.position.set(side*.155,1.99,-.99);g.add(eye);
-  let pupil=new THREE.Mesh(new THREE.SphereGeometry(.027,8,6),new THREE.MeshBasicMaterial({color:0xffc7c7}));pupil.position.set(side*.155-.012,2.01,-1.05);g.add(pupil);
- }
- // Open mouth cavity, upper/lower beak and individually visible teeth
- let mouth=new THREE.Mesh(new THREE.BoxGeometry(.38,.19,.16),new THREE.MeshBasicMaterial({color:0x21050a}));mouth.position.set(0,1.78,-1.02);g.add(mouth);
- let upper=new THREE.Mesh(new THREE.ConeGeometry(.22,.43,5),beakMat);upper.rotation.x=-Math.PI/2;upper.position.set(0,1.86,-1.17);g.add(upper);
- let lower=new THREE.Mesh(new THREE.BoxGeometry(.36,.085,.3),beakMat);lower.position.set(0,1.69,-1.12);g.add(lower);
- for(let i=-2;i<=2;i++){let t=new THREE.Mesh(new THREE.ConeGeometry(.038,.14,5),toothMat);t.position.set(i*.065,1.77,-1.12);t.rotation.x=Math.PI;g.add(t);let q=new THREE.Mesh(new THREE.ConeGeometry(.032,.11,5),toothMat);q.position.set(i*.065,1.72,-1.105);g.add(q)}
- // Orange webbed feet and dark claws
- for(let side of[-1,1]){let leg=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.3,7),beakMat);leg.position.set(side*.22,.25,-.05);g.add(leg);let foot=new THREE.Mesh(new THREE.BoxGeometry(.22,.07,.32),beakMat);foot.position.set(side*.22,.09,-.16);g.add(foot);for(let k=-1;k<=1;k++){let claw=new THREE.Mesh(new THREE.ConeGeometry(.025,.12,5),dark);claw.rotation.x=Math.PI/2;claw.position.set(side*.22+k*.065,.075,-.32);g.add(claw)}}
+ // Shared geometry/materials and a pooled, animated rig (goose-rig.js). Was ~70 meshes + ~12 materials per goose.
+ let g=gooseKit.acquire(type),boss=type==="boss",fast=type==="fast",brute=type==="brute";
  let angle=Math.random()*Math.PI*2,r=30+Math.random()*38;g.position.set(Math.sin(angle)*r,.02,Math.cos(angle)*r);
  let scale=boss?2.25:brute?1.45:fast?.82:1;g.scale.setScalar(scale);
  let dm=difficulty==="easy"?{hp:.72,speed:.86,damage:.62}:difficulty==="hard"?{hp:1.48,speed:1.24,damage:1.48}:{hp:1,speed:1,damage:1};
@@ -139,7 +111,7 @@ function teammate(name){
  else{let stem=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.2,8),outfit);stem.position.y=2.34;g.add(stem);let spike=new THREE.Mesh(new THREE.ConeGeometry(.18,.34,3),trim);spike.position.set(0,2.57,0);spike.rotation.y=Math.PI/2;g.add(spike)}
  g.userData={name,cd:0,bob:0};S.add(g);return g
 }
-function say(t,ms=900){let e=$("#message");e.textContent=t;e.style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>e.style.opacity=0,ms)}function burst(p,col=0xffc266){for(let i=0;i<3;i++){let x=new THREE.Mesh(new THREE.SphereGeometry(.03,4,3),new THREE.MeshBasicMaterial({color:col}));x.position.copy(p);x.userData={life:.25,v:new THREE.Vector3((Math.random()-.5)*2,Math.random(),(Math.random()-.5)*2)};S.add(x);parts.push(x)}}
+function say(t,ms=900){let e=$("#message");e.textContent=t;e.style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>e.style.opacity=0,ms)}function burst(p,col=0xffc266){emitBurst(S,parts,p,col)}
 function spawn(){nextWave=false;let token=run,count=Math.max(3,Math.min(24,Math.round((7+wave*2)*(difficulty==="easy"?.8:difficulty==="hard"?1.3:1)))),boss=wave%5===0;pending=count+(boss?1:0);say(boss?`BOSS WAVE ${wave}`:`WAVE ${wave}`,1200);$("#wave").textContent=`WAVE ${wave}`;for(let i=0;i<count;i++)setTimeout(()=>{if(!playing||run!==token)return;goose(i%7===6&&wave>2?"brute":i%5===4?"fast":"normal");pending--},i*110);if(boss)setTimeout(()=>{if(!playing||run!==token)return;goose("boss");pending--},600)}
 function config(){if(hero==="Phoenix"){maxHp=100;maxAmmo=14}else{maxHp=140;maxAmmo=18}if(difficulty==="easy"){maxHp=Math.round(maxHp*1.35);maxAmmo+=4}else if(difficulty==="hard"){maxHp=Math.round(maxHp*.85)}hp=maxHp;ammo=maxAmmo;$("#heroHud").textContent=`${hero.toUpperCase()} + ${hero==="Phoenix"?"MUMMY":"PHOENIX"}`}document.querySelectorAll(".difficulty").forEach(b=>b.onclick=()=>{document.querySelectorAll(".difficulty").forEach(x=>x.classList.remove("on"));b.classList.add("on");difficulty=b.dataset.difficulty;config();say(`${difficulty.toUpperCase()} MODE`,700)});document.querySelectorAll(".pick").forEach(b=>b.onclick=()=>{document.querySelectorAll(".pick").forEach(x=>x.classList.remove("on"));b.classList.add("on");hero=b.dataset.hero;config()});
 function reset(){audioReady();/* Release any Safari pointer captures from the previous run before clearing IDs. A stale captured touch must not steer a newly respawned player. */releaseInterruptedControls();/* A new run must never inherit a previous airborne/dead or held-control state. */vy=0;onGround=true;sprint=false;sprintPointer=null;joystickPointer=null;cameraPointer=null;mx=my=0;stick.style.transform="";yaw=0;pitch=0;run++;geese.splice(0).forEach(x=>S.remove(x));/* Remove particles from the previous run before respawning. */parts.splice(0).forEach(x=>S.remove(x));if(mate)S.remove(mate);wave=1;score=0;pending=0;nextWave=false;reloading=false;cam.position.set(0,1.7,5);arena.reset();weaponIndex=0;lastShot=-Infinity;ownedWeapons.clear();ownedWeapons.add(0);lootCount=0;weapons.forEach((w,i)=>{magazines[i]=w.mag;reserves[i]=i===0?w.mag*2:0});config();mate=teammate(hero==="Phoenix"?"Mummy":"Phoenix");mate.position.set(2,0,4);playing=true;paused=false;$("#menu").style.display="none";$("#pauseMenu").style.display="none";say(`${hero.toUpperCase()} + ${mate.userData.name.toUpperCase()} • TEAM UP!`,1400);spawn()}$(".start").onclick=reset;
