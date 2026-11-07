@@ -28,9 +28,9 @@ export function createArena(scene){
   // Roof platform and stairs lead to a vantage point.
   steps.push({x:cx,z:cz,w:8,d:7,height:3.32});
   for(let i=0;i<8;i++){
-   const x=cx-7.3+i*.78,z=cz+2.1,h=(i+1)*.415;
-   block(x,h/2,z,.78,h,1.65,timber,false);
-   steps.push({x,z,w:.78,d:1.65,height:h});
+   const x=cx-7.3+i*.82,z=cz+2.1,h=(i+1)*.415;
+   block(x,h/2,z,.92,h,2.1,timber,false);
+   steps.push({x,z,w:.98,d:2.1,height:h});
   }
   // A side barrier gives cover without blocking the roof.
   block(cx+3.4,3.65,cz, .35,.8,5,rock,false);
@@ -45,7 +45,7 @@ export function createArena(scene){
   latch.position.set(0,.57,-.5);g.add(latch);
   g.position.set(x,0,z);scene.add(g);chests.push({x,z,g,lid,opened:false});
  }
- function groundHeight(x,z,currentFeet=0){let best=0;for(const s of steps){if(Math.abs(x-s.x)<s.w/2&&Math.abs(z-s.z)<s.d/2&&s.height<=currentFeet+.55)best=Math.max(best,s.height)}return best}
+ function groundHeight(x,z,currentFeet=0){let best=0;for(const s of steps){if(Math.abs(x-s.x)<s.w/2&&Math.abs(z-s.z)<s.d/2&&s.height<=currentFeet+.65)best=Math.max(best,s.height)}return best}
  function collide(x,z,feet=0){return obstacles.some(o=>feet<((o.h??2.8)-.15)&&Math.abs(x-o.x)<o.w/2+.35&&Math.abs(z-o.z)<o.d/2+.35)}
  function collect(x,z){for(const c of chests){if(!c.opened&&Math.hypot(x-c.x,z-c.z)<2.4){c.opened=true;c.lid.rotation.x=-.9;c.lid.position.z=.25;return true}}return false}
  function reset(){for(const c of chests){c.opened=false;c.lid.rotation.x=0;c.lid.position.z=0}}
