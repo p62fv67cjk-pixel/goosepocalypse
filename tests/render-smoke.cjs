@@ -23,6 +23,13 @@ const fs=require('node:fs');
    // Exercise real menu interactions rather than merely bypassing the menu.
    await page.locator('.pick[data-hero="Mummy"]').click();
    if(!await page.locator('.pick[data-hero="Mummy"]').evaluate(el=>el.classList.contains('on')))throw Error(name+' Mummy selection failed');
+   // Guard against invisible image-map buttons overlapping: Play must not steal difficulty taps.
+   const hitboxes=await page.evaluate(()=>{
+    const difficulty=document.querySelector('.difficulties').getBoundingClientRect();
+    const play=document.querySelector('.start').getBoundingClientRect();
+    return {difficultyBottom:difficulty.bottom,playTop:play.top};
+   });
+   if(hitboxes.difficultyBottom>hitboxes.playTop)throw Error(name+' menu hitboxes overlap: '+JSON.stringify(hitboxes));
    await page.locator('.difficulty[data-difficulty="hard"]').click();
    if(!await page.locator('.difficulty[data-difficulty="hard"]').evaluate(el=>el.classList.contains('on')))throw Error(name+' difficulty selection failed');
    await page.locator('.start').click();
