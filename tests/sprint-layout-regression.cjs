@@ -8,9 +8,9 @@ const sections={
   landscape:html.split('@media(orientation:landscape)')[1].split('</style>')[0]
 };
 function style(section,id){
-  const matches=[...section.matchAll(new RegExp('#'+id+'\\{([^}]*)\\}','g'))];
+  const matches=[...section.matchAll(new RegExp('#'+id+'\{([^}]*)\}','g'))];
   assert.equal(matches.length,1,'Expected one '+id+' rule');
-  return Object.fromEntries([...matches[0][1].matchAll(/([\\w-]+):([^;}]*)/g)].map(([,k,v])=>[k,v.trim()]));
+  return Object.fromEntries([...matches[0][1].matchAll(/([\w-]+):([^;}]*)/g)].map(([,k,v])=>[k,v.trim()]));
 }
 for(const [name,section] of Object.entries(sections)){
   const sprint=style(section,'sprint');
@@ -24,5 +24,5 @@ for(const [name,section] of Object.entries(sections)){
   for(const [id,other] of [['fire',fire],['reload',reload],['jump',jump]])
     assert.ok(!overlaps(rect(sprint),rect(other)),name+' sprint overlaps '+id);
 }
-assert.match(html,/<button id="sprint">SPRINT<\\/button>/);
+assert.match(html,/<button id="sprint">SPRINT<\/button>/);
 console.log('Sprint layout checks passed for base, portrait and landscape.');
