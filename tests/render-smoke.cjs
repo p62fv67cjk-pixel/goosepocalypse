@@ -32,7 +32,7 @@ const fs=require('node:fs');
    if(hitboxes.difficultyBottom>hitboxes.playTop)throw Error(name+' menu hitboxes overlap: '+JSON.stringify(hitboxes));
    await page.locator('.difficulty[data-difficulty="hard"]').click();
    if(!await page.locator('.difficulty[data-difficulty="hard"]').evaluate(el=>el.classList.contains('on')))throw Error(name+' difficulty selection failed');
-   await page.locator('.start').click();
+   // Test the second hero and every difficulty without relying on desktop hover.\n   await page.locator('.pick[data-hero="Phoenix"]').click();\n   if(!await page.locator('.pick[data-hero="Phoenix"]').evaluate(el=>el.classList.contains('on')))throw Error(name+' Phoenix selection failed');\n   for(const level of ['easy','medium','hard']){\n    await page.locator('.difficulty[data-difficulty="'+level+'"]').click();\n    if(!await page.locator('.difficulty[data-difficulty="'+level+'"]').evaluate(el=>el.classList.contains('on')))throw Error(name+' '+level+' difficulty selection failed');\n   }\n   // Return to Mummy before starting, so both characters are exercised.\n   await page.locator('.pick[data-hero="Mummy"]').click();\n   await page.locator('.start').click();
    await page.waitForTimeout(1500);
    const gameShot=await page.screenshot({path:'test-artifacts/'+name+'-game.png',fullPage:true});
    if(gameShot.length<5000)throw Error(name+' gameplay screenshot unexpectedly small');
@@ -42,7 +42,7 @@ const fs=require('node:fs');
    if(inGame.width<width*.75||inGame.height<height*.75)throw Error(name+' game canvas not resized to viewport: '+JSON.stringify(inGame));
    const visible=await page.locator('#menu').evaluate(el=>getComputedStyle(el).display!=='none');
    if(visible)throw Error(name+' game did not leave menu');
-   if(errors.length)throw Error(name+' uncaught errors: '+errors.join(' | '));
+   // Keep the game running briefly to catch animation-loop errors after startup.\n   await page.waitForTimeout(3000);\n   if(errors.length)throw Error(name+' uncaught errors: '+errors.join(' | '));
    console.log(name+' rendered:',JSON.stringify(result));
    await page.close();
   }
