@@ -1,0 +1,19 @@
+name: Goose Bite Cover Regression
+on:
+  push:
+    branches: [main, 'fix/goose-bite-cover-nov8']
+  pull_request:
+    paths:
+      - 'bite-visibility.js'
+      - 'game.js'
+      - 'tests/bite-visibility.test.mjs'
+      - '.github/workflows/goose-bite-cover.yml'
+jobs:
+  bite-cover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/bite-visibility.test.mjs
