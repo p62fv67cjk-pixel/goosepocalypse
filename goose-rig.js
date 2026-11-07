@@ -159,6 +159,12 @@ export function makeGooseKit(THREE,options={}){
    r.pooled=true;pools[r.palette].push(root);
    const i=corpses.indexOf(root);if(i>=0)corpses.splice(i,1);
   });
+  // game.js assigns g.userData after acquire() and before S.add(g). Arm the death hook as the goose enters the
+  // scene, so game.js needs no extra call. Corpses and already-armed geese (accessor hp) are skipped.
+  root.addEventListener("added",()=>{
+   const d=Object.getOwnPropertyDescriptor(root.userData,"hp");
+   if(d&&"value" in d&&typeof d.value==="number")arm(root);
+  });
   stats.built++;
   return root;
  }
@@ -231,9 +237,11 @@ export function makeGooseKit(THREE,options={}){
  }
 
  // Wire the death animation to the goose's hit points: when hp drops to 0 or below, a corpse appears.
- // game.js assigns g.userData after acquire(), so call arm(g) once that is done.
+ // Normally automatic (see the "added" listener in buildRig); calling arm(g) again is harmless.
  function arm(g){
-  const u=g.userData;let hp=u.hp;
+  const u=g.userData,d=Object.getOwnPropertyDescriptor(u,"hp");
+  if(!d||!("value" in d))return;           // no hp yet, or already armed
+  let hp=d.value;
   Object.defineProperty(u,"hp",{get(){return hp},set(v){const was=hp;hp=v;if(was>0&&v<=0)die(g)},enumerable:true,configurable:true});
  }
 
