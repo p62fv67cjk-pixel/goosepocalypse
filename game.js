@@ -66,7 +66,10 @@ const weapons=[{name:"PISTOL",mag:14,damage:1.35,cooldown:280},{name:"RIFLE",mag
  const gunWood=new THREE.MeshStandardMaterial({color:0x79543b,roughness:.85,depthTest:false,depthWrite:false});
  const handMat=new THREE.MeshStandardMaterial({color:0xc99578,roughness:.9,depthTest:false,depthWrite:false});
  function gunBox(parent,x,y,z,w,h,d,mat=gunSteel){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.position.set(x,y,z);mesh.renderOrder=100;parent.add(mesh);return mesh}
- function buildHeldGun(index){heldGun.clear();const long=index===1||index===2||index===3,heavy=index===3,shotgun=index===2;
+ // Weapon swapping can happen hundreds of times in a session. Dispose only
+ // generated viewmodel geometry: shared materials belong to the game.
+ function clearHeldGun(){heldGun.traverse(object=>{if(object.isMesh)object.geometry?.dispose()});heldGun.clear()}
+ function buildHeldGun(index){clearHeldGun();const long=index===1||index===2||index===3,heavy=index===3,shotgun=index===2;
   const length=heavy?1.12:shotgun?.98:index===1?1.06:.5;
   gunBox(heldGun,0,0,-.12,.19,.19,length,gunSteel);
   gunBox(heldGun,0,.13,-.19,.15,.075,length*.68,gunDark);
