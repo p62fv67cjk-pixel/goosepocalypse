@@ -1,0 +1,28 @@
+name: Mountain arena regression
+on:
+  pull_request:
+    paths:
+      - 'arena-upgrade.js'
+      - 'game.js'
+      - 'tests/arena-regression.cjs'
+      - '.github/workflows/arena-regression.yml'
+  push:
+    branches:
+      - feature/mountain-cover-loot
+    paths:
+      - 'arena-upgrade.js'
+      - 'game.js'
+      - 'tests/arena-regression.cjs'
+      - '.github/workflows/arena-regression.yml'
+jobs:
+  arena-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check game.js
+      - run: node --check tests/arena-regression.cjs
+      - run: node tests/arena-regression.cjs
