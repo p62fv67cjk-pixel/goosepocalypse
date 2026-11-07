@@ -1,0 +1,23 @@
+name: Viewmodel geometry disposal regression
+on:
+  pull_request:
+    paths:
+      - 'game.js'
+      - 'tests/viewmodel-disposal.test.cjs'
+      - '.github/workflows/viewmodel-disposal.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'game.js'
+      - 'tests/viewmodel-disposal.test.cjs'
+      - '.github/workflows/viewmodel-disposal.yml'
+jobs:
+  disposal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check game.js
+      - run: node --test tests/viewmodel-disposal.test.cjs
