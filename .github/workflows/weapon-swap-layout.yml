@@ -1,0 +1,23 @@
+name: Weapon Swap Layout
+on:
+  push:
+    paths:
+      - 'game.js'
+      - 'index.html'
+      - 'tests/weapon-swap-layout.test.cjs'
+      - '.github/workflows/weapon-swap-layout.yml'
+  pull_request:
+    paths:
+      - 'game.js'
+      - 'index.html'
+      - 'tests/weapon-swap-layout.test.cjs'
+      - '.github/workflows/weapon-swap-layout.yml'
+jobs:
+  layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/weapon-swap-layout.test.cjs
