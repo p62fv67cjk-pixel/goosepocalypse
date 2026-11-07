@@ -82,7 +82,18 @@ window.addEventListener("pointerdown",unlockGameAudio,{passive:true});
 function playBuffer(buffer,fallback,volume=1){const c=audioReady();if(c&&buffer){const src=c.createBufferSource(),gain=c.createGain();src.buffer=buffer;gain.gain.value=volume;src.connect(gain);gain.connect(c.destination);src.start(0)}else playRecorded(fallback,volume)}
 function playRecorded(a,volume=1){try{a.pause();a.currentTime=0;a.volume=volume;const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
 function audioReady(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;if(!sfxCtx)sfxCtx=new AC();if(sfxCtx.state==="suspended")sfxCtx.resume();return sfxCtx}catch(e){return null}}
-function sfx(kind){if(kind==="shot")playBuffer(gunBuffer,recordedGunshot,1);else if(kind==="reload")playBuffer(reloadBuffer,recordedReload,1)}
+// Distinct weapon signatures. Original WebAudio layers avoid extra downloads on mobile.
+// The existing recorded pistol shot remains intact; other weapons use tuned synthesis.
+let noiseBuffer=null;
+function gunNoise(ctx){if(noiseBuffer&&noiseBuffer.sampleRate===ctx.sampleRate)return noiseBuffer;const b=ctx.createBuffer(1,Math.floor(ctx.sampleRate*.55),ctx.sampleRate),a=b.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1;noiseBuffer=b;return b}
+function weaponShotSound(index){const ctx=audioReady();if(!ctx)return;const t=ctx.currentTime;
+ const settings=[null,{duration:.17,low:1100,high:3800,vol:.28,bass:135},{duration:.33,low:230,high:1850,vol:.48,bass:72},{duration:.48,low:160,high:1300,vol:.55,bass:48}];
+ const p=settings[index];if(!p)return;
+ function blast(offset,volume){const at=t+offset,source=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();source.buffer=gunNoise(ctx);filter.type="bandpass";filter.frequency.setValueAtTime(p.high,at);filter.frequency.exponentialRampToValueAtTime(p.low,at+p.duration);filter.Q.value=.65;gain.gain.setValueAtTime(Math.max(.0001,p.vol*volume),at);gain.gain.exponentialRampToValueAtTime(.0001,at+p.duration);source.connect(filter);filter.connect(gain);gain.connect(ctx.destination);source.start(at);source.stop(at+p.duration+.01)}
+ blast(0,1);if(index===2){blast(.025,.45);blast(.055,.25)}if(index===3)blast(.075,.35);
+ const osc=ctx.createOscillator(),bassGain=ctx.createGain();osc.type="triangle";osc.frequency.setValueAtTime(p.bass*2,t);osc.frequency.exponentialRampToValueAtTime(p.bass,t+.13);bassGain.gain.setValueAtTime(.17,t);bassGain.gain.exponentialRampToValueAtTime(.0001,t+.17);osc.connect(bassGain);bassGain.connect(ctx.destination);osc.start(t);osc.stop(t+.18)
+}
+function sfx(kind){if(kind==="shot"){if(weaponIndex===0)playBuffer(gunBuffer,recordedGunshot,1);else weaponShotSound(weaponIndex)}else if(kind==="reload")playBuffer(reloadBuffer,recordedReload,1)}
 const white=new THREE.MeshStandardMaterial({color:0xe9e5d9}),orange=new THREE.MeshStandardMaterial({color:0xe77616}),gum=new THREE.MeshStandardMaterial({color:0x7b1c2b});
 function goose(type="normal"){
  let g=new THREE.Group(),boss=type==="boss",fast=type==="fast",brute=type==="brute";
