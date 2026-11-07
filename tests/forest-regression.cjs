@@ -16,7 +16,7 @@ function run() {
   class Texture {constructor(){this.repeat={set(){}};}}
   const ctx={fillRect(){},set fillStyle(v){}};
   const THREE={Object3D:Obj,Mesh,InstancedMesh:Instanced,Color,CanvasTexture:Texture,MeshStandardMaterial:class{constructor(v){this.v=v;}},MeshBasicMaterial:class{constructor(v){this.v=v;}},PlaneGeometry:class{},DodecahedronGeometry:class{},ConeGeometry:class{},CylinderGeometry:class{},RepeatWrapping:1,SRGBColorSpace:1,DoubleSide:2};
-  vm.runInNewContext(source.slice(start,end),{THREE,document:{createElement(){return {getContext(){return ctx;}};}},S:{add(...x){scene.push(...x);}},Math});
+  vm.runInNewContext(source.slice(start,end),{THREE,createArena:()=>({}),document:{createElement(){return {getContext(){return ctx;}};}},S:{add(...x){scene.push(...x);}},Math});
   return {meshes,scene};
 }
 const a=run(),b=run();
