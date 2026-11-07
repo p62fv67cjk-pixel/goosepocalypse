@@ -5,7 +5,9 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../game.js'), 'utf8');
 const start = source.indexOf('let scenerySeed=');
-const end = source.indexOf('const geese=[],parts=[];', start);
+// Stop at the forest boundary, not at an outdated declaration of the goose arrays.
+// Gameplay may add new collections (such as meatDrops) without changing scenery.
+const end = source.indexOf('const geese=[],parts=', start);
 assert(start !== -1 && end > start, 'forest block must exist');
 function run() {
   const meshes=[]; const scene=[];
