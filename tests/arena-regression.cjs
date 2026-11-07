@@ -29,5 +29,5 @@ assert.equal(arena.collect(-11,9),true,'chest resets for next game');
 assert.match(game,/let weaponIndex=0,lastShot=-Infinity/,'initial weapon must fire immediately');
 assert.match(game,/weaponIndex=0;lastShot=-Infinity/,'restart must fire immediately');
 assert.match(game,/new Audio\(new URL\("\.\/Gun%201\.wav"/,'recorded gunshot retained');
-assert.match(game,/new Audio\(new URL\("\.\/Reload%201\.wav"/,'recorded reload retained');
+assert.ok(game.includes('new Audio(new URL("./gun-cocking-04.wav"'),'recorded reload retained');
 console.log('Mountain arena geometry, stairs, collision, chest lifecycle and weapon startup checks passed');
