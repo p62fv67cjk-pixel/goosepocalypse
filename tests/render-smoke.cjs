@@ -36,6 +36,8 @@ const fs=require('node:fs');
    await page.waitForTimeout(1500);
    const gameShot=await page.screenshot({path:'test-artifacts/'+name+'-game.png',fullPage:true});
    if(gameShot.length<5000)throw Error(name+' gameplay screenshot unexpectedly small');
+   // Catch a stale/frozen menu frame: gameplay must render a visibly different frame.
+   if(gameShot.equals(menuShot))throw Error(name+' gameplay screenshot is identical to menu screenshot');
    const inGame=await page.evaluate(()=>({width:document.querySelector('#game').width,height:document.querySelector('#game').height}));
    if(inGame.width<width*.75||inGame.height<height*.75)throw Error(name+' game canvas not resized to viewport: '+JSON.stringify(inGame));
    const visible=await page.locator('#menu').evaluate(el=>getComputedStyle(el).display!=='none');
