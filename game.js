@@ -7,8 +7,44 @@ const moonHalo=new THREE.Mesh(new THREE.SphereGeometry(10.1,32,24),new THREE.Mes
 bloodMoon.add(moonHalo);
 const moonLight=new THREE.PointLight(0x9d1424,22,150);moonLight.position.set(0,0,0);bloodMoon.add(moonLight);
 bloodMoon.position.set(-27,37,-92);S.add(bloodMoon);
-let ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({color:0x19281f}));ground.rotation.x=-Math.PI/2;S.add(ground);
-const trunk=new THREE.MeshStandardMaterial({color:0x35241f}),leaf=new THREE.MeshStandardMaterial({color:0x10271b});for(let i=0;i<150;i++){let a=Math.random()*6.28,r=18+Math.random()*78,x=Math.cos(a)*r,z=Math.sin(a)*r,t=new THREE.Mesh(new THREE.CylinderGeometry(.13,.28,4.5,7),trunk);t.position.set(x,2.25,z);S.add(t);let c=new THREE.Mesh(new THREE.ConeGeometry(1.8,5.2,8),leaf);c.position.set(x,5.1,z);S.add(c);let c2=new THREE.Mesh(new THREE.ConeGeometry(1.35,4.1,8),leaf);c2.position.set(x,7.2,z);S.add(c2)}
+// Mobile-friendly atmospheric detail: textured ground, stones, tufts and moonlit haze.
+// Stable seeded decoration avoids shifting landmarks on every reload.
+let scenerySeed=0x6d6f6f6e;const sceneryRandom=()=>{scenerySeed=(Math.imul(scenerySeed,1664525)+1013904223)>>>0;return scenerySeed/4294967296;};
+const groundTexture=(()=>{const c=document.createElement("canvas");c.width=c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#243126";ctx.fillRect(0,0,128,128);for(let i=0;i<1500;i++){const x=sceneryRandom()*128,y=sceneryRandom()*128,l=sceneryRandom()*12+12;ctx.fillStyle="rgba("+l+","+(l+13)+","+l+","+(sceneryRandom()*.16)+")";ctx.fillRect(x,y,sceneryRandom()*3+1,sceneryRandom()*3+1)}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(44,44);t.colorSpace=THREE.SRGBColorSpace;return t})();
+let ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({color:0x788e78,map:groundTexture,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;S.add(ground);
+const stoneMat=new THREE.MeshStandardMaterial({color:0x414744,roughness:1}),grassMat=new THREE.MeshStandardMaterial({color:0x354832,roughness:1,side:THREE.DoubleSide});
+const stoneGeo=new THREE.DodecahedronGeometry(1,0),grassGeo=new THREE.ConeGeometry(.15,.58,3);
+const stones=new THREE.InstancedMesh(stoneGeo,stoneMat,100),grass=new THREE.InstancedMesh(grassGeo,grassMat,360),dummy=new THREE.Object3D();
+for(let i=0;i<460;i++){const a=sceneryRandom()*Math.PI*2,r=7+Math.sqrt(sceneryRandom())*95,x=Math.cos(a)*r,z=Math.sin(a)*r;dummy.position.set(x,0,z);dummy.rotation.set(0,sceneryRandom()*Math.PI*2,0);if(i<100){const sc=.12+sceneryRandom()*.42;const stoneHeight=.16+sceneryRandom()*.22;dummy.scale.set(sc,stoneHeight,sc);dummy.position.y=stoneHeight;dummy.updateMatrix();stones.setMatrixAt(i,dummy.matrix)}else{const sc=.6+sceneryRandom()*1.2;dummy.scale.set(sc,sc,sc);dummy.position.y=.29*sc;dummy.updateMatrix();grass.setMatrixAt(i-100,dummy.matrix)}}
+stones.instanceMatrix.needsUpdate=true;grass.instanceMatrix.needsUpdate=true;S.add(stones,grass);
+const haze=new THREE.Mesh(new THREE.PlaneGeometry(190,190),new THREE.MeshBasicMaterial({color:0x87929c,transparent:true,opacity:.035,depthWrite:false,side:THREE.DoubleSide}));haze.rotation.x=-Math.PI/2;haze.position.y=.16;S.add(haze);
+// Three instanced draw calls instead of 450 individual tree meshes. Preserve seeded positions and silhouettes.
+const trunk=new THREE.MeshStandardMaterial({color:0x35241f}),leaf=new THREE.MeshStandardMaterial({color:0x10271b});
+const treeCount=150;
+const treeTrunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.13,.28,4.5,7),trunk,treeCount);
+const treeLower=new THREE.InstancedMesh(new THREE.ConeGeometry(1.8,5.2,8),leaf,treeCount);
+const treeUpper=new THREE.InstancedMesh(new THREE.ConeGeometry(1.35,4.1,8),leaf,treeCount);
+const treeTransform=new THREE.Object3D();
+for(let i=0;i<treeCount;i++){
+ const a=sceneryRandom()*Math.PI*2,r=18+sceneryRandom()*78,x=Math.cos(a)*r,z=Math.sin(a)*r;
+ // Vary height, width and orientation without extra draw calls or random reloads.
+ // Scale each crown around its own base so smaller trees do not float above ground.
+ const height=.72+sceneryRandom()*.62,width=.75+sceneryRandom()*.55,turn=sceneryRandom()*Math.PI*2;
+ // Per-tree foliage tint breaks up uniform green silhouettes without new materials or draw calls.
+ // Apply the same tint to both crown layers; trunks retain their bark material.
+ const foliageTint=new THREE.Color().setRGB(.72+sceneryRandom()*.24,.78+sceneryRandom()*.20,.70+sceneryRandom()*.22);
+ treeLower.setColorAt(i,foliageTint);treeUpper.setColorAt(i,foliageTint);
+ for(const [mesh,y] of [[treeTrunks,2.25],[treeLower,5.1],[treeUpper,7.2]]){
+  treeTransform.position.set(x,y*height,z);treeTransform.rotation.set(0,turn,0);treeTransform.scale.set(width,height,width);
+  treeTransform.updateMatrix();mesh.setMatrixAt(i,treeTransform.matrix);
+ }
+}
+for(const mesh of [treeTrunks,treeLower,treeUpper]){
+ mesh.instanceMatrix.needsUpdate=true;
+ if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+ mesh.computeBoundingSphere(); // Ensure frustum culling covers the whole forest.
+ S.add(mesh);
+}
 const geese=[],parts=[];let hero="Phoenix",difficulty="medium",mate=null,hp=100,maxHp=100,ammo=14,maxAmmo=14,wave=1,score=0,playing=false,paused=false,yaw=0,pitch=0,mx=0,my=0,vy=0,onGround=true,sprint=false,reloading=false,pending=0,nextWave=false,run=0,last=performance.now();
 let sfxCtx=null;
 const recordedGunshot=new Audio(new URL("./Gun%201.wav",import.meta.url).href);
