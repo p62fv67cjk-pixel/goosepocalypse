@@ -1,0 +1,30 @@
+name: Goose rig unit tests
+# Stored under docs/workflows/ because the Claude GitHub connector cannot create files under .github/workflows/
+# (GitHub requires a separate "workflows" permission for that). To enable: open this file on github.com, tap the
+# pencil (edit), change the file path to  .github/workflows/goose-rig.yml  and commit.
+on:
+  pull_request:
+    paths:
+      - 'goose-pose.js'
+      - 'goose-rig.js'
+      - 'particle-pool.js'
+      - 'game.js'
+      - 'tests/goose-*.mjs'
+      - 'tests/particle-pool.test.mjs'
+      - '.github/workflows/goose-rig.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Same three.js version that game.js loads from the CDN, so tests exercise the real library.
+      - run: npm install --no-save --no-package-lock three@0.170.0
+      - run: node --check goose-pose.js && node --check goose-rig.js && node --check particle-pool.js
+      - run: node --test tests/goose-pose.test.mjs tests/goose-integration.test.mjs tests/goose-rig.test.mjs tests/goose-autoarm.test.mjs tests/particle-pool.test.mjs
