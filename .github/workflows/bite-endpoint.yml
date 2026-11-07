@@ -1,0 +1,18 @@
+name: Bite endpoint regression
+on:
+  push:
+    branches: [main, fix/bite-cover-endpoint-nov8]
+  pull_request:
+    paths:
+      - bite-visibility.js
+      - tests/bite-endpoint.test.mjs
+      - .github/workflows/bite-endpoint.yml
+jobs:
+  bite-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/bite-endpoint.test.mjs
