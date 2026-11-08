@@ -1,0 +1,22 @@
+name: Hit particle disposal regression
+on:
+  push:
+    paths:
+      - 'game.js'
+      - 'tests/hit-particle-disposal.test.cjs'
+      - '.github/workflows/hit-particle-disposal.yml'
+  pull_request:
+    paths:
+      - 'game.js'
+      - 'tests/hit-particle-disposal.test.cjs'
+      - '.github/workflows/hit-particle-disposal.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check game.js
+      - run: node --test tests/hit-particle-disposal.test.cjs
