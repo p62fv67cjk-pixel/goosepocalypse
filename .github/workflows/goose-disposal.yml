@@ -1,0 +1,21 @@
+name: Goose GPU disposal regression
+on:
+  push:
+    paths:
+      - game.js
+      - tests/goose-disposal.test.mjs
+      - .github/workflows/goose-disposal.yml
+  pull_request:
+    paths:
+      - game.js
+      - tests/goose-disposal.test.mjs
+      - .github/workflows/goose-disposal.yml
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/goose-disposal.test.mjs
