@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {canTraverse} from '../movement-collision.js';
+const wall=(x)=>x>.47&&x<.53;
+assert.equal(canTraverse(0,0,1,0,()=>false),true,'clear movement');
+assert.equal(canTraverse(0,0,1,0,wall),false,'forward thin wall');
+assert.equal(canTraverse(1,0,0,0,wall),false,'reverse thin wall');
+assert.equal(canTraverse(0,0,0,0,()=>false),true,'stationary');
+assert.equal(canTraverse(0,0,1,0,()=>true),false,'blocked endpoint');
+assert.equal(canTraverse(NaN,0,1,0,()=>false),false,'invalid coordinates');
+assert.equal(canTraverse(0,0,1,0,()=>false,-1),false,'invalid sampling');
+console.log('7 swept movement collision assertions passed');
