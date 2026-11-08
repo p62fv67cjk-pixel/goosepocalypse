@@ -106,6 +106,15 @@ if(movePad){
     }catch{}
   },{capture:true});
 
+  // A second finger's pointerup must not clear game.js joystick state while the
+  // owning finger is still held. Capture before game.js's bubbling handler.
+  movePad.addEventListener('pointerup',e=>{
+    if(!e.__gwtSyntheticRelease&&(e.pointerType==='touch'||e.pointerType==='pen')&&
+       (activeMovePointer===null||e.pointerId!==activeMovePointer)){
+      e.stopImmediatePropagation();
+    }
+  },{capture:true});
+
   const endMove=e=>{
     if(activeMovePointer===null||e.pointerId!==activeMovePointer){
       if(activeMovePointer!==null)e.stopImmediatePropagation();
