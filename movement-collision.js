@@ -1,6 +1,6 @@
 // Sample the entire horizontal movement path, not just the endpoint.
 // A fast sprint or throttled mobile frame must not tunnel through thin cover.
-export function canTraverse(startX,startZ,endX,endZ,blocked,stepSize=0.12){
+export function canTraverse(startX,startZ,endX,endZ,blocked,stepSize=0.025){
  if(![startX,startZ,endX,endZ,stepSize].every(Number.isFinite)||stepSize<=0||typeof blocked!=='function')return false;
  const distance=Math.hypot(endX-startX,endZ-startZ);
  const steps=Math.max(1,Math.ceil(distance/stepSize));
