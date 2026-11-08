@@ -1,0 +1,24 @@
+name: Immediate mobile audio suspension regression
+on:
+  push:
+    paths:
+      - game.js
+      - effects.js
+      - tests/immediate-audio-suspend.test.mjs
+      - .github/workflows/immediate-audio-suspend.yml
+  pull_request:
+    paths:
+      - game.js
+      - effects.js
+      - tests/immediate-audio-suspend.test.mjs
+      - .github/workflows/immediate-audio-suspend.yml
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check game.js
+      - run: node tests/immediate-audio-suspend.test.mjs
