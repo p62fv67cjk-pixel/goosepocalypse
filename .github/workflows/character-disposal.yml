@@ -1,0 +1,22 @@
+name: Character GPU disposal regression
+on:
+  push:
+    paths:
+      - 'game.js'
+      - 'tests/character-disposal.test.mjs'
+      - '.github/workflows/character-disposal.yml'
+  pull_request:
+    paths:
+      - 'game.js'
+      - 'tests/character-disposal.test.mjs'
+      - '.github/workflows/character-disposal.yml'
+jobs:
+  character-disposal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check game.js
+      - run: node tests/character-disposal.test.mjs
