@@ -184,6 +184,19 @@ for(const type of ['pointerup','pointercancel']){
  window.addEventListener(type,releaseSprint,{capture:true});
  window.addEventListener(type,releaseCamera,{capture:true});
 }
+// Safari can background or blur without delivering pointerup. Release gameplay input
+// alongside effects.js audio ownership so a resumed game cannot ghost-walk or sprint.
+function clearTouchInput(){
+ const moveId=joystickPointer,sprintId=sprintPointer,cameraId=cameraPointer;
+ joystickPointer=null;sprintPointer=null;cameraPointer=null;
+ mx=my=0;sprint=false;stick.style.transform="";
+ for(const [element,id] of [[pad,moveId],[sprintButton,sprintId],[C,cameraId]]){
+  if(id!==null){try{if(element.hasPointerCapture(id))element.releasePointerCapture(id)}catch{}}
+ }
+}
+window.addEventListener('blur',clearTouchInput);
+window.addEventListener('pagehide',clearTouchInput);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTouchInput()});
 $("#jump").onpointerdown=()=>{if(!playing||paused||!onGround)return;vy=5.8;onGround=false};
 function reload(){if(!playing||paused||reloading||ammo===maxAmmo||reserves[weaponIndex]<=0)return;audioReady();sfx("reload");reloading=true;let token=run;say("RELOADING",600);setTimeout(()=>{if(run===token){{const needed=maxAmmo-ammo,taken=Math.min(needed,reserves[weaponIndex]);ammo+=taken;reserves[weaponIndex]-=taken;magazines[weaponIndex]=ammo;}reloading=false}},hero==="Mummy"?700:700)}function kill(g,team=false){if(!geese.includes(g))return;dropMeat(g);S.remove(g);geese.splice(geese.indexOf(g),1);score+=g.userData.type==="boss"?1000:g.userData.type==="brute"?300:100;if(team)say(`${mate.userData.name.toUpperCase()} GOT ONE!`,400);if(!geese.length&&pending<=0&&!nextWave){nextWave=true;wave++;let token=run;setTimeout(()=>{if(run===token&&playing)spawn()},1200)}}
 const ray=new THREE.Raycaster();function fire(){if(!playing||paused||reloading)return;const now=performance.now();if(now-lastShot<weapons[weaponIndex].cooldown)return;lastShot=now;audioReady();if(ammo<=0)return reload();sfx("shot");gunKick=1;ammo--;magazines[weaponIndex]=ammo;ray.setFromCamera(new THREE.Vector2(),cam);let hit=ray.intersectObjects(geese,true)[0];if(!hit)return;let g=hit.object;while(g.parent&&!geese.includes(g))g=g.parent;if(!geese.includes(g))return;g.userData.hp-=weapons[weaponIndex].damage*(hero==="Phoenix"?1.15:1)*(difficulty==="easy"?1.25:difficulty==="hard"?.9:1);burst(hit.point);if(g.userData.hp<=0)kill(g)}const swapButton=document.createElement("button");swapButton.id="swapWeapon";swapButton.type="button";swapButton.textContent="SWAP GUN";swapButton.setAttribute("aria-label","Switch collected weapon");swapButton.style.cssText="position:fixed;left:14px;top:calc(env(safe-area-inset-top) + 112px);z-index:4;padding:10px 12px;border:1px solid #b99853;border-radius:12px;background:#20232bcc;color:white;font-weight:bold;touch-action:manipulation";document.body.appendChild(swapButton);swapButton.onpointerdown=e=>{e.preventDefault();if(!playing||paused||reloading)return;const options=[...ownedWeapons].sort((a,b)=>a-b);if(options.length<2){say("FIND A WEAPON CHEST",700);return;}magazines[weaponIndex]=ammo;weaponIndex=options[(options.indexOf(weaponIndex)+1)%options.length];maxAmmo=weapons[weaponIndex].mag;ammo=magazines[weaponIndex];say("EQUIPPED "+weapons[weaponIndex].name,700)};$("#fire").onpointerdown=fire;$("#reload").onpointerdown=reload;$("#pause").onclick=()=>{paused=true;releaseInterruptedControls();$("#pauseMenu").style.display="flex"};$(".resume").onclick=()=>{paused=false;$("#pauseMenu").style.display="none"};function releaseInterruptedControls(){// Clear ownership before releasing capture: lostpointercapture fires synchronously on some browsers.

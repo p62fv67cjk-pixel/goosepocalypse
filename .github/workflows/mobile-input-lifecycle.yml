@@ -1,0 +1,21 @@
+name: Mobile input lifecycle regression
+on:
+  push:
+    branches: [main, fix/ios-ghost-input-blur]
+  pull_request:
+    paths:
+      - game.js
+      - effects.js
+      - tests/mobile-input-lifecycle.test.mjs
+      - .github/workflows/mobile-input-lifecycle.yml
+jobs:
+  input-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check game.js
+      - run: node --check effects.js
+      - run: node tests/mobile-input-lifecycle.test.mjs
