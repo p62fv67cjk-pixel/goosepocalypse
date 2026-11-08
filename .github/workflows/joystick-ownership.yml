@@ -1,0 +1,14 @@
+name: Joystick ownership regression
+on:
+  push:
+    branches: [main, 'fix/joystick-nonowner-release']
+  pull_request:
+jobs:
+  joystick-ownership:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/joystick-nonowner-release.test.cjs
