@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const game=readFileSync(new URL('../game.js',import.meta.url),'utf8');
+const effects=readFileSync(new URL('../effects.js',import.meta.url),'utf8');
+assert.match(game,/\$\("#pause"\)\.onclick=\(\)=>\{paused=true;releaseInterruptedControls\(\);window\.dispatchEvent\(new CustomEvent\("gwt:ground-state",\{detail:\{grounded:onGround,playing:false\}\}\)\)/,'pause must synchronously notify audio owner');
+assert.match(game,/function suspendInterruptedSession\(\)\{releaseInterruptedControls\(\);window\.dispatchEvent\(new CustomEvent\("gwt:ground-state",\{detail:\{grounded:onGround,playing:false\}\}\)\)\}/);
+for(const event of ['blur','pagehide'])assert.ok(game.includes('window.addEventListener("'+event+'",suspendInterruptedSession)'),event+' must suspend audio');
+assert.ok(game.includes('if(document.hidden)suspendInterruptedSession()'),'visibility loss must suspend audio');
+assert.match(effects,/if\(!playing\)\{[\s\S]*?suspendMovement\(\)/,'effects must consume false playing state');
+console.log('Immediate pause and Safari interruption audio source contract passed');
