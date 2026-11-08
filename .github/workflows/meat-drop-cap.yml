@@ -1,0 +1,14 @@
+name: Meat pickup cap regression
+on:
+  push:
+    branches: [main, 'fix/bounded-meat-drops']
+  pull_request:
+jobs:
+  meat-pickups:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/meat-drop-cap.test.cjs
