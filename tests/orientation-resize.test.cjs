@@ -1,0 +1,18 @@
+const fs=require('node:fs');
+const vm=require('node:vm');
+const assert=require('node:assert/strict');
+const src=fs.readFileSync('game.js','utf8');
+const start=src.indexOf('function resize(){');
+const end=src.indexOf('new ResizeObserver(resize)',start);
+assert.ok(start>=0&&end>start,'resize handler exists');
+const sizes=[{width:390,height:844},{width:0,height:844},{width:844,height:0},{width:844,height:390},{width:NaN,height:390}];
+let updates=0,renderSizes=[];
+const cam={aspect:1,updateProjectionMatrix(){updates++}};
+const context={C:{getBoundingClientRect(){return sizes.shift()}},R:{setSize(w,h){renderSizes.push([w,h])}},cam,Number};
+vm.runInNewContext(src.slice(start,end)+';this.resize=resize;',context);
+context.resize();assert.equal(cam.aspect,390/844);
+context.resize();context.resize();assert.equal(updates,1,'zero-size rotation does not update projection');
+context.resize();assert.equal(cam.aspect,844/390);
+context.resize();assert.equal(updates,2,'non-finite bounds are ignored');
+assert.deepEqual(renderSizes,[[390,844],[844,390]]);
+console.log('Safari orientation resize regression passed');
