@@ -87,7 +87,8 @@ const checks = [
   ['movement remains silent during airborne physics frames', () => {
     assert.match(effects, /if\(!grounded\)\{/);
     assert.match(effects, /if\(!jumping\)\{jumping=true;stopTrack\(true\);stopLanding\(\)\}/);
-    assert.match(effects, /if\(jumping\)\{jumping=false;[\s\S]*?landingImpact\(\)\}/);
+    assert.match(effects, /if\(jumping&&observedAirborne\)\{jumping=false;observedAirborne=false;[\s\S]*?landingImpact\(\)\}/);
+    assert.match(effects, /if\(!grounded\)\{\s*observedAirborne=true;/);
     assert.match(game, /activeStick\?[-\w*]+/);
   }],
   ['first bite can splatter immediately and restart clears bite history', () => {

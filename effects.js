@@ -150,6 +150,7 @@ jumpBtn?.addEventListener('pointerdown',()=>{if(jumping||!gameActive()||(authori
 // The game physics loop is authoritative for landing. A mirrored physics timer can
 // drift on throttled iPhones and restart footsteps while the player is still airborne.
 let authoritativeGroundState=false;
+let observedAirborne=false;
 let physicsGrounded=true; // The game, not the effects controller, decides whether another jump is allowed.
 window.addEventListener('gwt:ground-state',event=>{
  authoritativeGroundState=true;
@@ -167,13 +168,14 @@ window.addEventListener('gwt:ground-state',event=>{
  }
  wasPhysicsPlaying=true;
  if(!grounded){
+   observedAirborne=true;
    // Only transition into airborne once. Repeated physics frames must not seek
    // the landing sample on every tick (a costly operation on mobile Safari).
    // The jump-button handler already stops landing audio immediately.
    if(!jumping){jumping=true;stopTrack(true);stopLanding()}
    return
   }
- if(jumping){jumping=false;jumpY=0;jumpVY=0;landingImpact()}
+ if(jumping&&observedAirborne){jumping=false;observedAirborne=false;jumpY=0;jumpVY=0;landingImpact()}
  syncMovement();
 });
 // Fallback only for a standalone effects controller without game physics events.
@@ -207,7 +209,7 @@ function geeseAlive(){const e=document.querySelector('#geeseLeft');const n=Numbe
 // Keep the ambient timer alive while menus are open or no geese are spawned. A timer
 // that stops on an inactive frame never returns after the player starts a new round.
 function scheduleHonk(){setTimeout(()=>{try{if(geeseAlive()&&Math.random()<.78)demonicHonk()}finally{scheduleHonk()}},3600+Math.random()*4700)}scheduleHonk();
-function suspendMovement({resetJump=false}={}){const oldMove=movePointer,oldSprint=sprintPointer;movePointer=null;sprintPointer=null;moving=false;sprinting=false;stopTrack(true);stopLanding();if(oldMove!==null&&pad?.hasPointerCapture?.(oldMove)){try{pad.releasePointerCapture(oldMove)}catch{}}if(oldSprint!==null&&sprintBtn?.hasPointerCapture?.(oldSprint)){try{sprintBtn.releasePointerCapture(oldSprint)}catch{}}if(resetJump){jumping=false;jumpY=0;jumpVY=0;jumpFrameTime=0}}
+function suspendMovement({resetJump=false}={}){const oldMove=movePointer,oldSprint=sprintPointer;movePointer=null;sprintPointer=null;moving=false;sprinting=false;stopTrack(true);stopLanding();if(oldMove!==null&&pad?.hasPointerCapture?.(oldMove)){try{pad.releasePointerCapture(oldMove)}catch{}}if(oldSprint!==null&&sprintBtn?.hasPointerCapture?.(oldSprint)){try{sprintBtn.releasePointerCapture(oldSprint)}catch{}}if(resetJump){observedAirborne=false;jumping=false;jumpY=0;jumpVY=0;jumpFrameTime=0}}
 // Pause/menu lifecycle is part of the audio state machine: no ghost footsteps under overlays.
 // Preserve airborne state across pause/background interruptions because game.js preserves the
 // physical jump too. Only a new run is allowed to discard that state.
