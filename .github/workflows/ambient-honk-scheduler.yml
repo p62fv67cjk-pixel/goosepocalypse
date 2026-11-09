@@ -1,0 +1,21 @@
+name: Ambient honk scheduler regression
+on:
+  push:
+    paths:
+      - 'effects.js'
+      - 'tests/ambient-honk-scheduler.test.cjs'
+      - '.github/workflows/ambient-honk-scheduler.yml'
+  pull_request:
+    paths:
+      - 'effects.js'
+      - 'tests/ambient-honk-scheduler.test.cjs'
+      - '.github/workflows/ambient-honk-scheduler.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/ambient-honk-scheduler.test.cjs
