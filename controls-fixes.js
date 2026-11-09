@@ -46,6 +46,15 @@ if(sprintButton){
     activeSprintPointer=e.pointerId;
     try{sprintButton.setPointerCapture(e.pointerId)}catch{}
   },{capture:true});
+  // Ignore unrelated touch releases before game.js sees them. A rejected second
+  // finger must not end the real sprint, and an orphan release after ownership
+  // was cleared must not toggle sprint in the underlying game handler.
+  sprintButton.addEventListener('pointerup',e=>{
+    if(!e.__gwtSyntheticRelease&&(e.pointerType==='touch'||e.pointerType==='pen')&&
+       (activeSprintPointer===null||e.pointerId!==activeSprintPointer)){
+      e.stopImmediatePropagation();
+    }
+  },{capture:true});
   const endSprint=e=>{
     if(activeSprintPointer===null||e.pointerId!==activeSprintPointer){
       if(activeSprintPointer!==null)e.stopImmediatePropagation();
