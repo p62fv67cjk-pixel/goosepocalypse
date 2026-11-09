@@ -206,7 +206,7 @@ function demonicHonk(){const c=ensureCtx();if(!c)return;const t=c.currentTime,ma
 function geeseAlive(){const e=document.querySelector('#geeseLeft');const n=Number((e?.textContent.match(/\d+/)||[0])[0]);return n>0&&gameActive()}
 // Keep the ambient timer alive while menus are open or no geese are spawned. A timer
 // that stops on an inactive frame never returns after the player starts a new round.
-function scheduleHonk(){setTimeout(()=>{if(geeseAlive()&&Math.random()<.78)demonicHonk();scheduleHonk()},3600+Math.random()*4700)}scheduleHonk();
+function scheduleHonk(){setTimeout(()=>{try{if(geeseAlive()&&Math.random()<.78)demonicHonk()}finally{scheduleHonk()}},3600+Math.random()*4700)}scheduleHonk();
 function suspendMovement({resetJump=false}={}){const oldMove=movePointer,oldSprint=sprintPointer;movePointer=null;sprintPointer=null;moving=false;sprinting=false;stopTrack(true);stopLanding();if(oldMove!==null&&pad?.hasPointerCapture?.(oldMove)){try{pad.releasePointerCapture(oldMove)}catch{}}if(oldSprint!==null&&sprintBtn?.hasPointerCapture?.(oldSprint)){try{sprintBtn.releasePointerCapture(oldSprint)}catch{}}if(resetJump){jumping=false;jumpY=0;jumpVY=0;jumpFrameTime=0}}
 // Pause/menu lifecycle is part of the audio state machine: no ghost footsteps under overlays.
 // Preserve airborne state across pause/background interruptions because game.js preserves the
