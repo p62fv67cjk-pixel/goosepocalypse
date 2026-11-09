@@ -25,4 +25,26 @@ assert.equal(landings,1,'landing plays once after actual flight');
 assert.equal(state.jumping,false);
 state.onGround({detail:{grounded:true,playing:true}});
 assert.equal(landings,1,'repeated grounded frames do not replay landing');
+
+// An interrupted jump must stay airborne through pause/resume, even when the
+// first resumed physics report is grounded before the actual takeoff report.
+state.jumping=true;
+state.observedAirborne=false;
+state.onGround({detail:{grounded:true,playing:false}});
+assert.equal(landings,1,'pausing cannot synthesize a landing');
+state.onGround({detail:{grounded:true,playing:true}});
+assert.equal(landings,1,'resuming grounded before takeoff cannot land');
+state.onGround({detail:{grounded:false,playing:true}});
+state.onGround({detail:{grounded:true,playing:true}});
+assert.equal(landings,2,'real landing after resume plays exactly once');
+// Walking off a ledge should also land once, without requiring jump-button input.
+state.jumping=false;
+state.observedAirborne=false;
+state.onGround({detail:{grounded:false,playing:true}});
+assert.equal(state.jumping,true,'falling without pressing jump enters airborne audio state');
+state.onGround({detail:{grounded:false,playing:true}});
+state.onGround({detail:{grounded:true,playing:true}});
+assert.equal(landings,3,'ledge fall produces one landing impact');
+state.onGround({detail:{grounded:true,playing:true}});
+assert.equal(landings,3,'grounded frames after ledge landing stay silent');
 console.log('Landing physics transition regression passed');
