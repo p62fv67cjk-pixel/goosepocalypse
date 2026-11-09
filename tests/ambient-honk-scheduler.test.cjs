@@ -15,7 +15,7 @@ const sandbox={
 };
 vm.runInNewContext(match[0],sandbox);
 assert.equal(queue.length,1);
-queue.shift()();
+assert.throws(()=>queue.shift()(), /audio interrupted/);
 assert.equal(honks,1);
 assert.equal(queue.length,1,'WebAudio failure must not kill scheduling');
 active=false;queue.shift()();
