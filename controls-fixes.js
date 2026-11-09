@@ -171,6 +171,27 @@ if(gameCanvas){
   }
 }
 
+// Safari may deliver the terminal event to window rather than the captured control.
+// game.js/effects.js already release their own state at window level, but this
+// adapter must also forget the pointer ID or the next touch is rejected forever.
+// Do not preempt normal releases targeted at the control: those must pass through
+// its capture handlers in order to deliver exactly one terminal event.
+for(const type of ['pointerup','pointercancel']){
+  window.addEventListener(type,e=>{
+    const path=typeof e.composedPath==='function'?e.composedPath():[];
+    for(const [element,id,clear] of [
+      [movePad,activeMovePointer,()=>{activeMovePointer=null}],
+      [sprintButton,activeSprintPointer,()=>{activeSprintPointer=null}],
+      [gameCanvas,activeLookPointer,()=>{activeLookPointer=null}]
+    ]){
+      if(id===null||e.pointerId!==id||!element)continue;
+      if(path.includes(element)||element===e.target||element.contains?.(e.target))continue;
+      clear();
+      release(element,id);
+    }
+  },{capture:true});
+}
+
 function releaseAllControls(){
   const sprintId=activeSprintPointer;
   const moveId=activeMovePointer;
