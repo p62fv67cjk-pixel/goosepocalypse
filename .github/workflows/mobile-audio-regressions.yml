@@ -1,0 +1,17 @@
+name: Mobile audio regression tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  mobile-audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify mobile multitouch and movement audio
+        run: node --test tests/mobile-multitouch-audio.test.cjs
