@@ -1,0 +1,18 @@
+name: Goose visual contract
+on:
+  push:
+    branches: [main, 'test/goose-visual-contract-*']
+  pull_request:
+    paths:
+      - 'game.js'
+      - 'tests/goose-visual-contract.test.mjs'
+      - '.github/workflows/goose-visual-contract.yml'
+jobs:
+  visual-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/goose-visual-contract.test.mjs
