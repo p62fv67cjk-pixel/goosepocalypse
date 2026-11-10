@@ -1,0 +1,17 @@
+name: Mobile safe-area layout regression
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  safe-area-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check portrait and landscape control geometry
+        run: node --test tests/mobile-safe-area.test.cjs
