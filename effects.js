@@ -205,6 +205,16 @@ const BITE_HONK_COOLDOWN_MS=1800;
 const health=document.querySelector('#health');if(health){const read=()=>{const m=health.textContent.match(/(\d+)/);if(!m)return;const hp=Number(m[1]);if(lastHp!==null&&hp<lastHp&&gameActive()){splashBlood();const now=performance.now();if(now-lastBiteHonk>=BITE_HONK_COOLDOWN_MS){lastBiteHonk=now;demonicHonk()}}lastHp=hp};new MutationObserver(read).observe(health,{childList:true,characterData:true,subtree:true});read()}
 // Low distorted demonic honk, deliberately avoiding square/chiptune tones.
 function demonicHonk(){const c=ensureCtx();if(!c)return;const t=c.currentTime,master=c.createGain(),lp=c.createBiquadFilter(),shaper=c.createWaveShaper();master.gain.setValueAtTime(.0001,t);master.gain.exponentialRampToValueAtTime(.16,t+.055);master.gain.exponentialRampToValueAtTime(.0001,t+1.05);lp.type='lowpass';lp.frequency.setValueAtTime(620,t);lp.frequency.exponentialRampToValueAtTime(180,t+1.05);const curve=new Float32Array(1024);for(let i=0;i<curve.length;i++){const x=i*2/(curve.length-1)-1;curve[i]=(1.8*x)/(1+1.25*Math.abs(x))}shaper.curve=curve;for(const[freq,det]of[[91,-8],[118,5],[147,-3]]){const o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*.62,t+.85);o.detune.value=det;o.connect(shaper);o.start(t);o.stop(t+1.08)}shaper.connect(lp);lp.connect(master);master.connect(c.destination)}
+// Spawn honks use the same low demonic timbre as bites, not the unused game.js sfx keys.
+// Throttle entire waves to one audible call, while allowing a boss its own warning.
+let lastSpawnHonk=-Infinity;
+window.addEventListener('gwt:goose-spawn',event=>{
+ if(!gameActive())return;
+ const now=performance.now(),boss=event.detail?.boss===true;
+ if(now-lastSpawnHonk<(boss?900:3200))return;
+ lastSpawnHonk=now;
+ demonicHonk();
+});
 function geeseAlive(){const e=document.querySelector('#geeseLeft');const n=Number((e?.textContent.match(/\d+/)||[0])[0]);return n>0&&gameActive()}
 // Keep the ambient timer alive while menus are open or no geese are spawned. A timer
 // that stops on an inactive frame never returns after the player starts a new round.
