@@ -133,7 +133,7 @@ function goose(type="normal"){
  let lower=new THREE.Mesh(new THREE.BoxGeometry(.36,.085,.3),beakMat);lower.position.set(0,1.69,-1.12);g.add(lower);
  // Animate the lower mandible only: the upper teeth remain visible as the goose lunges.
  const lowerJaw=lower;
- for(let i=-2;i<=2;i++){let t=new THREE.Mesh(new THREE.ConeGeometry(.038,.14,5),toothMat);t.position.set(i*.065,1.77,-1.12);t.rotation.x=Math.PI;g.add(t);let q=new THREE.Mesh(new THREE.ConeGeometry(.032,.11,5),toothMat);q.position.set(i*.065,1.72,-1.105);g.add(q)}
+ for(let i=-2;i<=2;i++){let t=new THREE.Mesh(new THREE.ConeGeometry(.038,.14,5),toothMat);t.position.set(i*.065,1.77,-1.12);t.rotation.x=Math.PI;g.add(t);let q=new THREE.Mesh(new THREE.ConeGeometry(.032,.11,5),toothMat);q.position.set(i*.065,.03,.015);lowerJaw.add(q)}
  // Orange webbed feet and dark claws
  for(let side of[-1,1]){let leg=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.3,7),beakMat);leg.position.set(side*.22,.25,-.05);g.add(leg);let foot=new THREE.Mesh(new THREE.BoxGeometry(.22,.07,.32),beakMat);foot.position.set(side*.22,.09,-.16);g.add(foot);for(let k=-1;k<=1;k++){let claw=new THREE.Mesh(new THREE.ConeGeometry(.025,.12,5),dark);claw.rotation.x=Math.PI/2;claw.position.set(side*.22+k*.065,.075,-.32);g.add(claw)}}
  let angle=Math.random()*Math.PI*2,r=30+Math.random()*38;g.position.set(Math.sin(angle)*r,.02,Math.cos(angle)*r);
