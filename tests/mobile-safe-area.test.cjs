@@ -50,3 +50,8 @@ test('all six touch controls respect safe areas without overlap at mobile viewpo
           orientation + ' ' + width + ' ' + rectangles[i][0] + '/' + rectangles[j][0] + ' overlap');
   }
 });
+
+test('wave and status HUD remain below the iPhone top safe area', () => {
+  assert.match(html, /#wave\s*\{[^}]*top:calc\(10px \+ env\(safe-area-inset-top\)\)/);
+  assert.match(html, /#heroHud,#ammo,#geeseLeft\s*\{[^}]*top:calc\(42px \+ env\(safe-area-inset-top\)\)/);
+});
