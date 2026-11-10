@@ -39,6 +39,9 @@
 #sprint{right:calc(16px + env(safe-area-inset-right));bottom:calc(109px + env(safe-area-inset-bottom))}
 #pause{right:calc(10px + env(safe-area-inset-right));top:calc(12px + env(safe-area-inset-top))}
 }
+/* Prevent Safari's native gesture handling from stealing held action-button touches.
+   The joystick already opts out; extend that guarantee to every gameplay action. */
+#fire,#jump,#reload,#sprint,#pause{touch-action:none;-webkit-user-select:none;user-select:none}
 </style>
 </head>
 <body>
