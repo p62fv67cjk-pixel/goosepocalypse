@@ -138,7 +138,7 @@ function goose(type="normal"){
  let scale=boss?2.25:brute?1.45:fast?.82:1;g.scale.setScalar(scale);
  let dm=difficulty==="easy"?{hp:.72,speed:.86,damage:.62}:difficulty==="hard"?{hp:1.48,speed:1.24,damage:1.48}:{hp:1,speed:1,damage:1};
  g.userData={nextCall:performance.now()+900+Math.random()*2800,hp:(boss?20+wave*2:brute?8+wave*.4:fast?2:3+wave*.18)*dm.hp,speed:(boss?.72:brute?.7:fast?1.8+wave*.03:1+wave*.03)*dm.speed*1.32,type,damage:(boss?35:brute?28:fast?16:20)*dm.damage,bob:Math.random()*6};
- S.add(g);geese.push(g);if(boss)sfx("bossgoose");else if(Math.random()<.7)sfx("goose")
+ S.add(g);geese.push(g);// Spawn calls previously used unsupported sfx kinds and were silent. Effects owns the low honk.\n if(boss||Math.random()<.7)window.dispatchEvent(new CustomEvent("gwt:goose-spawn",{detail:{boss}}))
 }
 function teammate(name){
  let g=new THREE.Group(),mummy=name==="Mummy";
