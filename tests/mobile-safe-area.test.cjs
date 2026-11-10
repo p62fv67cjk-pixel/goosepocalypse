@@ -16,7 +16,7 @@ function rectangle(orientation, id, viewport, safe) {
   const css = block(orientation);
   const match = css.match(new RegExp('#' + id + '\\s*\\{([^}]*)\\}'));
   assert.ok(match, orientation + ' #' + id + ' rule missing');
-  const props = Object.fromEntries([...match[1].matchAll(/(left|right|top|bottom):calc\\((\\d+)px \\+ env\\(safe-area-inset-(left|right|top|bottom)\\)\\)/g)].map(m => [m[1], { offset:Number(m[2]), inset:m[3] }]));
+  const props = Object.fromEntries([...match[1].matchAll(/(left|right|top|bottom):calc\((\d+)px \+ env\(safe-area-inset-(left|right|top|bottom)\)\)/g)].map(m => [m[1], { offset:Number(m[2]), inset:m[3] }]));
   const horizontal = props.left ? 'left' : 'right';
   const vertical = props.top ? 'top' : 'bottom';
   assert.ok(props[horizontal] && props[vertical], id + ' safe-area axes missing');
