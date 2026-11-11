@@ -111,11 +111,12 @@ function goose(type="normal"){
  // Tail fan feathers
  for(let i=-3;i<=3;i++){let f=new THREE.Mesh(new THREE.SphereGeometry(.19,9,7),featherMat);f.scale.set(.55,.45,1.65);f.position.set(i*.105,.98,1.02+Math.abs(i)*.025);f.rotation.x=-.18;f.rotation.y=i*.13;g.add(f)}
  // Layered wing coverts and long flight feathers on both sides
+ const wings=[];
  for(let side of[-1,1]){
   let wing=new THREE.Group();wing.position.set(side*.48,1.02,.04);wing.rotation.z=-side*.12;
   for(let j=0;j<9;j++){let f=new THREE.Mesh(new THREE.SphereGeometry(.17,9,7),featherMat);f.scale.set(.58,.38,1.55);f.position.set(side*j*.065,-.12-j*.018,.38-j*.145);f.rotation.y=side*.18;wing.add(f)}
   for(let j=0;j<6;j++){let f=new THREE.Mesh(new THREE.SphereGeometry(.14,8,6),plum);f.scale.set(.8,.48,1.25);f.position.set(side*j*.055,.06,.02-j*.12);wing.add(f)}
-  g.add(wing);
+  g.add(wing);wings.push({mesh:wing,side});
  }
  // Upright curved-looking neck and head
  let neck=new THREE.Mesh(new THREE.CylinderGeometry(.145,.22,.78,12),plum);neck.position.set(0,1.48,-.56);neck.rotation.x=-.22;g.add(neck);
@@ -139,7 +140,7 @@ function goose(type="normal"){
  let angle=Math.random()*Math.PI*2,r=30+Math.random()*38;g.position.set(Math.sin(angle)*r,.02,Math.cos(angle)*r);
  let scale=boss?2.25:brute?1.45:fast?.82:1;g.scale.setScalar(scale);
  let dm=difficulty==="easy"?{hp:.72,speed:.86,damage:.62}:difficulty==="hard"?{hp:1.48,speed:1.24,damage:1.48}:{hp:1,speed:1,damage:1};
- g.userData={lowerJaw,attackPhase:Math.random()*Math.PI*2,nextCall:performance.now()+900+Math.random()*2800,hp:(boss?20+wave*2:brute?8+wave*.4:fast?2:3+wave*.18)*dm.hp,speed:(boss?.72:brute?.7:fast?1.8+wave*.03:1+wave*.03)*dm.speed*1.32,type,damage:(boss?35:brute?28:fast?16:20)*dm.damage,bob:Math.random()*6};
+ g.userData={lowerJaw,wings,attackPhase:Math.random()*Math.PI*2,nextCall:performance.now()+900+Math.random()*2800,hp:(boss?20+wave*2:brute?8+wave*.4:fast?2:3+wave*.18)*dm.hp,speed:(boss?.72:brute?.7:fast?1.8+wave*.03:1+wave*.03)*dm.speed*1.32,type,damage:(boss?35:brute?28:fast?16:20)*dm.damage,bob:Math.random()*6};
  S.add(g);geese.push(g);
  // Spawn calls previously used unsupported sfx kinds and were silent. Effects owns the low honk.
  if(boss||Math.random()<.7)window.dispatchEvent(new CustomEvent("gwt:goose-spawn",{detail:{boss}}))
@@ -223,6 +224,10 @@ const activeStick=Math.hypot(mx,my)>.18;const previousX=cam.position.x,previousZ
  const jawOpen=threatening?Math.pow(.5+.5*Math.sin(now*.014+g.userData.attackPhase),3):0;
  g.userData.lowerJaw.position.y=1.69-.16*jawOpen;
  g.userData.lowerJaw.rotation.x=-.22*jawOpen;
+ // Wing flare signals a bite. Gentle opposing wing motion adds life to the pursuit
+ // without creating geometry, materials or per-frame allocations.
+ const wingStride=Math.sin(g.userData.bob*1.8)*.09;
+ for(const wing of g.userData.wings){wing.mesh.rotation.z=wing.side*(-.12-.38*jawOpen+wingStride);wing.mesh.rotation.x=.08*jawOpen;}
  // Keep the beak and teeth aimed at the player even after the goose stops advancing to bite.
  g.lookAt(cam.position.x,g.position.y,cam.position.z);g.rotateY(Math.PI);
  if(dist>biteRange){const direction=d.normalize();const step=g.userData.speed*dt;const nx=g.position.x+direction.x*step,nz=g.position.z+direction.z*step;if(!arena.collide(nx,nz)){g.position.x=nx;g.position.z=nz}else{const flank=new THREE.Vector3(-direction.z,0,direction.x);const sign=Math.sin(g.userData.bob*.6)>0?1:-1;const fx=g.position.x+flank.x*step*sign,fz=g.position.z+flank.z*step*sign;if(!arena.collide(fx,fz)){g.position.x=fx;g.position.z=fz}}}else if(canGooseBite(arena,g.position.x,g.position.z,cam.position.x,cam.position.z,cam.position.y,1.3*g.scale.x)){hp-=g.userData.damage*dt}}for(let i=parts.length-1;i>=0;i--){let p=parts[i];p.userData.life-=dt;p.position.addScaledVector(p.userData.v,dt);if(p.userData.life<=0){disposeBurstParticle(p);parts.splice(i,1)}}$("#health").textContent=`❤ ${Math.max(0,Math.round(hp))}/${maxHp}`;$("#score").textContent=`SCORE ${score}`;$("#ammo").textContent=reloading?"RELOADING":`${weapons[weaponIndex].name} ${ammo}/${reserves[weaponIndex]}`;$("#geeseLeft").textContent=`GEESE ${geese.length+pending}`;$("#damage").style.opacity=hp<45?String((45-hp)/65):"0";if(hp<=0){playing=false;window.dispatchEvent(new CustomEvent('gwt:ground-state',{detail:{grounded:onGround,playing:false}}));run++;say("THE FLOCK GOT YOU",900);const deathRun=run,deathScore=score,deathWave=wave;setTimeout(()=>{if(run!==deathRun||playing)return;$("#menu").style.display="flex";$(".start").textContent=`RESPAWN • SCORE ${deathScore} • WAVE ${deathWave}`},650)}}animateHeldGun(now,dt);R.render(S,cam);requestAnimationFrame(frame)}requestAnimationFrame(frame);
