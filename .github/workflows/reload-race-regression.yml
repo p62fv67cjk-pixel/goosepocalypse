@@ -1,0 +1,15 @@
+name: Reload race regression
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  reload-race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test reload state and timer races
+        run: node --test tests/reload-race.test.cjs
