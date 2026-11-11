@@ -1,0 +1,23 @@
+name: Mobile input interruption regression
+on:
+  pull_request:
+    paths:
+      - 'game.js'
+      - 'tests/mobile-input-interruption.test.mjs'
+      - '.github/workflows/mobile-input-interruption.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'game.js'
+      - 'tests/mobile-input-interruption.test.mjs'
+      - '.github/workflows/mobile-input-interruption.yml'
+jobs:
+  input-interruption:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Safari interruption source guards
+        run: node --test tests/mobile-input-interruption.test.mjs
