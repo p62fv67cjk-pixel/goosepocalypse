@@ -5,14 +5,24 @@
 // GPU-memory leak and a lot of garbage on iPhone. Here every goose is MESHES_PER_GOOSE meshes that share
 // geometry and materials between ALL geese, and goose rigs are pooled and reused.
 //
+// Realism pass: the body, neck, bill, wings and feet are now modelled shapes (see goose-shapes.js) instead of
+// stacked primitives, with a tiling feather-scale texture and soft belly/back shading. The rig, pivots, pose
+// maths and draw-call budget are unchanged.
+//
 // three.js is injected (makeGooseKit(THREE)) so game.js and this file always use the same three instance and
 // the logic can be unit-tested in Node. Weapons, loot and gameplay code are deliberately NOT touched here.
 import {createState,createPose,resetPose,stepState,computePose,TAU,DEATH_LIFETIME_SECONDS} from "./goose-pose.js";
+import {bodyShape,tubeShape,billShape,footShape} from "./goose-shapes.js";
 
 // body, skull, eyes, eye glow, jaw, 2 wings, 2 legs
 export const MESHES_PER_GOOSE=9;
 // Pivot points in the original goose coordinate system (head faces -Z).
 const T=[0,.8,0],H=[0,1.86,-.64],J=[0,1.72,-.9],O=[0,0,0];
+// Wing shoulder (goose space). Wing geometry is built with +x outward, +z towards the tail, folded against the flank.
+const SHOULDER=[.52,1.07,-.2];
+// Texel in the corner of the feather texture that is plain white: parts that must NOT show feather scales
+// (bill, teeth, feet, eyes) point all their UVs here. Canvas row 0 is v=1 because textures are flipped on upload.
+const SOLID_UV=[3/128,1-3/128];
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 
@@ -32,15 +42,37 @@ export function makeGooseKit(THREE,options={}){
 
  // ---- shared primitives (unit-sized; scaled per part when merged) ----
  const sphLo=new THREE.SphereGeometry(1,8,6),sphMid=new THREE.SphereGeometry(1,16,12),sphHead=new THREE.SphereGeometry(1,14,10);
+ const sphFeather=new THREE.SphereGeometry(1,7,4);      // thin lens-shaped feather blade once scaled
  const cone=new THREE.ConeGeometry(1,1,5),box=new THREE.BoxGeometry(1,1,1),plane=new THREE.PlaneGeometry(1,1);
- const neckGeo=new THREE.CylinderGeometry(.145,.22,.78,10),legGeo=new THREE.CylinderGeometry(.045,.055,.3,6);
+ const legGeo=new THREE.CylinderGeometry(.045,.055,.3,6);
 
  // ---- shared materials (one set for every goose in the game) ----
- const bodyMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9,metalness:0});
+ const featherTexture=(options.featherTexture!==undefined?options.featherTexture:makeFeatherTexture());
+ const bodyMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:0,map:featherTexture||null});
  const eyeMat=new THREE.MeshBasicMaterial({vertexColors:true});
  const eyeDeadMat=new THREE.MeshBasicMaterial({vertexColors:true,color:0x2a0508});
  const glowTexture=(options.glowTexture!==undefined?options.glowTexture:makeGlowTexture());
  const haloMat=new THREE.MeshBasicMaterial({map:glowTexture||null,color:0xff2a3c,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+ // game.js disposes whatever a removed goose references; shared resources must survive that.
+ for(const m of[bodyMat,eyeMat,eyeDeadMat,haloMat])m.userData.shared=true;
+
+ // Tiling feather-scale texture, multiplied with the per-vertex plumage colour. 128px keeps it cheap on iPhone.
+ function makeFeatherTexture(){
+  if(typeof document==="undefined")return null;
+  const c=document.createElement("canvas");c.width=c.height=128;
+  const x=c.getContext("2d");if(!x)return null;
+  x.fillStyle="#cfcfcf";x.fillRect(0,0,128,128);
+  // 8 x 8 overlapping scallops, every other row offset by half a scale. Rows/columns -1 and 8 wrap the edges so it tiles.
+  for(let row=-1;row<=8;row++)for(let col=-1;col<=8;col++){
+   const cx=col*16+(row&1?8:0),cy=row*16+8;
+   const g=x.createRadialGradient(cx,cy-3,1,cx,cy,11);
+   g.addColorStop(0,"#f4f4f4");g.addColorStop(.65,"#dcdcdc");g.addColorStop(1,"#a2a2a2");
+   x.fillStyle=g;x.beginPath();x.arc(cx,cy,10,0,Math.PI*2);x.fill();
+  }
+  x.fillStyle="#ffffff";x.fillRect(0,0,6,6);              // the solid texel that plain parts sample (SOLID_UV)
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;return t;
+ }
  function makeGlowTexture(){
   if(typeof document==="undefined")return null;
   const c=document.createElement("canvas");c.width=c.height=64;
@@ -52,30 +84,71 @@ export function makeGooseKit(THREE,options={}){
  }
 
  // ---- geometry merging: bakes parts (position, rotation, scale, colour) into one vertex-coloured geometry ----
- const _m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new THREE.Vector3(),_s=new THREE.Vector3(),_c=new THREE.Color();
+ // uv option: false = no UVs, "keep" = copy each part's own UVs (glow quad), true = feather texture where a part
+ // asks for it (tex:true) and the plain white texel everywhere else.
+ const _m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_p=new THREE.Vector3(),_s=new THREE.Vector3(),_c=new THREE.Color(),_n=new THREE.Vector3();
  class Builder{
-  constructor(rng,pivot,withUV=false){this.rng=rng;this.pivot=pivot;this.withUV=withUV;this.pos=[];this.nor=[];this.col=[];this.uv=[]}
-  add(geo,p,s,color,{r=O,jitter=0}={}){
+  constructor(rng,pivot,{uv=false}={}){this.rng=rng;this.pivot=pivot;this.uvMode=uv;this.pos=[];this.nor=[];this.col=[];this.uv=[]}
+  _tint(color,jitter,k){_c.set(color);const j=jitter?1+(this.rng()*2-1)*jitter:1;_c.multiplyScalar(j*k)}
+  _pushUV(ua,i,tex,uvScale){
+   if(!this.uvMode)return;
+   if(this.uvMode==="keep"){this.uv.push(ua[2*i],ua[2*i+1]);return}
+   if(tex)this.uv.push(ua[2*i]*uvScale[0],ua[2*i+1]*uvScale[1]);else this.uv.push(SOLID_UV[0],SOLID_UV[1]);
+  }
+  // A transformed copy of a shared three.js primitive.
+  add(geo,p,s,color,{r=O,jitter=0,k=1,shade=null,tex=false,uvScale=[1,1]}={}){
    const g=geo.index?geo.toNonIndexed():geo.clone();
    _e.set(r[0],r[1],r[2]);_q.setFromEuler(_e);
    _p.set(p[0]-this.pivot[0],p[1]-this.pivot[1],p[2]-this.pivot[2]);_s.set(s[0],s[1],s[2]);
    _m.compose(_p,_q,_s);g.applyMatrix4(_m);
-   _c.set(color);if(jitter)_c.multiplyScalar(1+(this.rng()*2-1)*jitter);   // per-feather tint so plumage is not flat
-   const pa=g.attributes.position.array,na=g.attributes.normal.array,n=pa.length/3;
+   this._tint(color,jitter,k);
+   const pa=g.attributes.position.array,na=g.attributes.normal.array,n=pa.length/3,ua=this.uvMode?g.attributes.uv.array:null;
    for(let i=0;i<pa.length;i++){this.pos.push(pa[i]);this.nor.push(na[i])}
-   for(let i=0;i<n;i++)this.col.push(_c.r,_c.g,_c.b);
-   if(this.withUV){const ua=g.attributes.uv.array;for(let i=0;i<ua.length;i++)this.uv.push(ua[i])}
+   for(let i=0;i<n;i++){
+    const sh=shade?shade(pa[3*i]+this.pivot[0],pa[3*i+1]+this.pivot[1],pa[3*i+2]+this.pivot[2],na[3*i],na[3*i+1],na[3*i+2]):1;
+    this.col.push(_c.r*sh,_c.g*sh,_c.b*sh);
+    this._pushUV(ua,i,tex,uvScale);
+   }
    g.dispose();return this;
   }
+  // A transformed copy of a generated shape from goose-shapes.js (indexed arrays). Normals are rotated, not scaled.
+  addShape(shape,p,s,color,{r=O,jitter=0,k=1,shade=null,tex=false,uvScale=[1,1]}={}){
+   _e.set(r[0],r[1],r[2]);_q.setFromEuler(_e);
+   this._tint(color,jitter,k);
+   const P=shape.pos,N=shape.nor,U=shape.uv,I=shape.idx,count=P.length/3,tp=new Array(P.length),tn=new Array(N.length);
+   for(let v=0;v<count;v++){
+    _p.set(P[3*v]*s[0],P[3*v+1]*s[1],P[3*v+2]*s[2]).applyQuaternion(_q);
+    tp[3*v]=_p.x+p[0]-this.pivot[0];tp[3*v+1]=_p.y+p[1]-this.pivot[1];tp[3*v+2]=_p.z+p[2]-this.pivot[2];
+    _n.set(N[3*v],N[3*v+1],N[3*v+2]).applyQuaternion(_q).normalize();
+    tn[3*v]=_n.x;tn[3*v+1]=_n.y;tn[3*v+2]=_n.z;
+   }
+   for(let t=0;t<I.length;t++){
+    const v=I[t];
+    this.pos.push(tp[3*v],tp[3*v+1],tp[3*v+2]);this.nor.push(tn[3*v],tn[3*v+1],tn[3*v+2]);
+    const sh=shade?shade(tp[3*v]+this.pivot[0],tp[3*v+1]+this.pivot[1],tp[3*v+2]+this.pivot[2],tn[3*v],tn[3*v+1],tn[3*v+2]):1;
+    this.col.push(_c.r*sh,_c.g*sh,_c.b*sh);
+    this._pushUV(U,v,tex,uvScale);
+   }
+   return this;
+  }
   build(){
+   // Never let a bad number reach the GPU (a NaN position would make the whole goose vanish).
+   for(const a of[this.pos,this.nor,this.col])for(let i=0;i<a.length;i++)if(!Number.isFinite(a[i]))a[i]=0;
    const g=new THREE.BufferGeometry();
    g.setAttribute("position",new THREE.Float32BufferAttribute(this.pos,3));
    g.setAttribute("normal",new THREE.Float32BufferAttribute(this.nor,3));
    g.setAttribute("color",new THREE.Float32BufferAttribute(this.col,3));
-   if(this.withUV)g.setAttribute("uv",new THREE.Float32BufferAttribute(this.uv,2));
-   g.computeBoundingSphere();g.computeBoundingBox();return g;
+   if(this.uvMode)g.setAttribute("uv",new THREE.Float32BufferAttribute(this.uv,2));
+   g.computeBoundingSphere();g.computeBoundingBox();
+   g.userData.shared=true;                    // shared between all geese: game.js must not dispose it per kill
+   return g;
   }
  }
+
+ // Back is a touch darker than the belly, like real plumage.
+ const bodyShade=(x,y,z,nx,ny)=>1.06-.1*ny;
+ // Where the flank surface is (half-width of the body at world z), so wing feathers can lie along it.
+ const flank=zw=>.56-.3*Math.pow(Math.max(0,(zw-.2)/.9),2);
 
  const palettes={};
  function palette(key){return palettes[key]||(palettes[key]=buildPalette(key))}
@@ -83,23 +156,35 @@ export function makeGooseKit(THREE,options={}){
   const boss=key==="boss",brute=key==="brute",rng=mulberry32(boss?7:brute?5:3);
   const plum=boss?0x28252d:brute?0x454950:0xe7e2d7,feather=boss?0x17151d:brute?0x353a40:0xf7f0e4;
   const beak=boss?0x6f151d:0xd65a18,dark=0x100b12,tooth=0xfff1d7,mouth=0x21050a,gum=0x7b1c2b;
-  // Torso: body, back feathers, tail fan, neck (all static relative to the torso pivot).
-  const torso=new Builder(rng,T);
-  torso.add(sphMid,[0,.8,0],[.632,.484,.88],plum,{jitter:.03});
-  for(let i=-2;i<=2;i++)torso.add(sphLo,[i*.17,1.08-Math.abs(i)*.04,.12],[.13,.07,.34],feather,{r:[0,0,i*.18],jitter:.07});
-  for(let i=-3;i<=3;i++)torso.add(sphLo,[i*.105,.98,1.02+Math.abs(i)*.025],[.1045,.0855,.3135],feather,{r:[-.18,i*.13,0],jitter:.06});
-  torso.add(neckGeo,[0,1.48,-.56],[1,1,1],plum,{r:[-.22,0,0]});
-  // Skull: head, brows, eye sockets, upper beak, mouth cavity, upper teeth + two fangs.
-  const head=new Builder(rng,H);
-  head.add(sphHead,[0,1.94,-.66],[.29,.2668,.3277],plum,{jitter:.02});
+  const neckPts=[[0,1,-.46],[0,1.28,-.62],[0,1.56,-.6],[0,1.78,-.64]],neckStops=[[0,.27],[.35,.205],[.75,.155],[1,.16]];
+  const neckShape=tubeShape(neckPts,neckStops,{radial:12,samples:14});
+  // Torso: smooth body, saddle feathers, tail fan, S-curved neck, thighs (all static relative to the torso pivot).
+  const torso=new Builder(rng,T,{uv:true});
+  torso.addShape(bodyShape(),[0,.82,.06],[1,1,1],plum,{jitter:.03,tex:true,shade:bodyShade});
+  for(let i=-2;i<=2;i++)torso.add(sphFeather,[i*.14,1.335-Math.abs(i)*.03,.18],[.09,.022,.34],feather,{r:[.04,i*.07,i*.22],jitter:.07,tex:true});
+  // Tail fan feathers
+  for(let i=-4;i<=4;i++)torso.add(sphFeather,[i*.05,.99+Math.abs(i)*.004,1.2],[.075,.02,.24],feather,{r:[-.2,i*.09,0],jitter:.06,k:.95,tex:true});
+  torso.addShape(neckShape,[0,0,0],[1,1,1],plum,{jitter:.02,tex:true,shade:bodyShade});
+  for(const side of[-1,1])torso.add(sphLo,[side*.27,.56,.12],[.2,.25,.3],plum,{jitter:.03,tex:true});
+  // Skull: head, cheeks, neck stub, brows, eye sockets, goose bill, mouth cavity, upper teeth + fangs.
+  const head=new Builder(rng,H,{uv:true});
+  head.add(sphHead,[0,1.94,-.67],[.255,.24,.33],plum,{jitter:.02,tex:true,uvScale:[2,2]});
+  for(const side of[-1,1])head.add(sphLo,[side*.16,1.88,-.8],[.1,.085,.15],plum,{tex:true});
+  head.addShape(tubeShape([[0,1.7,-.62],[0,1.82,-.66],[0,1.93,-.7]],[[0,.165],[1,.15]],{radial:10,samples:6}),[0,0,0],[1,1,1],plum,{tex:true});
+  // Brow ridges and glowing eyes facing forward
   for(const side of[-1,1]){
    head.add(box,[side*.155,2.09,-.86],[.22,.075,.11],dark,{r:[0,0,side*.16]});
    head.add(sphLo,[side*.155,1.99,-.91],[.105,.105,.105],dark);
   }
-  head.add(cone,[0,1.86,-1.17],[.22,.43,.22],beak,{r:[-Math.PI/2,0,0]});
+  head.addShape(billShape({len:.42,hw0:.15,hw1:.085,hh0:.075,hh1:.042,droop:.035}),[0,1.865,-.94],[1,1,1],beak);
+  head.add(sphLo,[0,1.835,-1.355],[.05,.022,.045],dark);                    // dark nail at the bill tip
+  // Open mouth cavity, upper/lower beak and individually visible teeth
   head.add(box,[0,1.78,-1.02],[.38,.19,.16],mouth);
-  for(let i=-2;i<=2;i++)head.add(cone,[i*.065,1.765,-1.13],[.044,.17,.044],tooth,{r:[Math.PI,0,0]});
-  for(const side of[-1,1])head.add(cone,[side*.15,1.76,-1.1],[.038,.22,.038],tooth,{r:[Math.PI,0,side*.08]});
+  for(let i=-2;i<=2;i++)head.add(cone,[i*.06,1.765,-1.19+Math.abs(i)*.02],[.042,.17-Math.abs(i)*.012,.042],tooth,{r:[Math.PI,0,0]});
+  for(const side of[-1,1]){
+   head.add(cone,[side*.15,1.76,-1.1],[.038,.22,.038],tooth,{r:[Math.PI,0,side*.08]});                  // fangs
+   for(let m=0;m<4;m++)head.add(cone,[side*(.135-.012*m),1.795,-1-.09*m],[.026,.1,.026],tooth,{r:[Math.PI,0,side*.1]});   // serrated tomium
+  }
   // Eyes: unlit red eyeballs with a hot core. Unlit so they glow regardless of the scene lighting.
   const eyes=new Builder(rng,H);
   for(const side of[-1,1]){
@@ -107,24 +192,44 @@ export function makeGooseKit(THREE,options={}){
    eyes.add(sphLo,[side*.15,2,-1.04],[.028,.028,.028],0xffc7c7);
   }
   // Eye glow: two additive quads in front of the eyes.
-  const halo=new Builder(rng,H,true);
+  const halo=new Builder(rng,H,{uv:"keep"});
   for(const side of[-1,1])halo.add(plane,[side*.155,1.99,-1.03],[.44,.44,1],0xffffff);
-  // Lower jaw (hinged): lower beak, lower teeth, tongue.
-  const jaw=new Builder(rng,J);
-  jaw.add(box,[0,1.69,-1.12],[.36,.085,.3],beak);
-  for(let i=-2;i<=2;i++)jaw.add(cone,[i*.065,1.72,-1.105],[.04,.15,.04],tooth);
+  // Lower jaw (hinged): lower bill, lower teeth, tusks, tongue.
+  const jaw=new Builder(rng,J,{uv:true});
+  jaw.addShape(billShape({len:.38,hw0:.135,hw1:.075,hh0:.05,hh1:.03,droop:-.01}),[0,1.69,-.92],[1,1,1],beak);
+  for(let i=-2;i<=2;i++)jaw.add(cone,[i*.06,1.72,-1.15+Math.abs(i)*.02],[.04,.15-Math.abs(i)*.01,.04],tooth);
+  for(const side of[-1,1]){
+   jaw.add(cone,[side*.1,1.74,-1.05],[.034,.2,.034],tooth,{r:[0,0,-side*.06]});                           // lower tusks
+   for(let m=0;m<3;m++)jaw.add(cone,[side*(.115-.012*m),1.725,-1.0-.09*m],[.024,.085,.024],tooth);
+  }
   jaw.add(box,[0,1.705,-1.02],[.2,.03,.22],gum);
   const pal={body:torso.build(),head:head.build(),eyes:eyes.build(),halo:halo.build(),jaw:jaw.build(),wing:{},leg:{}};
   for(const side of[-1,1]){
-   // Wings and legs are built in their own pivot-local coordinates.
-   const w=new Builder(rng,O);
-   for(let j=0;j<9;j++)w.add(sphLo,[side*j*.065,-.12-j*.018,.38-j*.145],[.0986,.0646,.2635],feather,{r:[0,side*.18,0],jitter:.06});
-   for(let j=0;j<6;j++)w.add(sphLo,[side*j*.055,.06,.02-j*.12],[.112,.0672,.175],plum,{jitter:.05});
+   // Wings: built in shoulder-local space, folded along the flank with the tip towards the tail.
+   const w=new Builder(rng,O,{uv:true});
+   const sx=(zl,extra)=>side*(flank(zl-.2)+extra-.52);                    // x offset that follows the body's taper
+   // Layered wing coverts and long flight feathers on both sides
+   w.add(sphMid,[side*.03,.03,.12],[.12,.17,.24],plum,{jitter:.03,tex:true,uvScale:[1.5,1.5]});
+   for(let r=0;r<3;r++)for(let i=0;i<6;i++){
+    const zl=.05+i*.12+r*.05;
+    w.add(sphFeather,[sx(zl,.04+.02*r),.07-.085*r,zl],[.06,.016,.13],r?feather:plum,{r:[.04,-side*.06,0],jitter:.06,tex:true});
+   }
+   for(let k=0;k<8;k++){                                                  // secondaries
+    const zl=.28+k*.085;
+    w.add(sphFeather,[sx(zl,.03),-.1-.012*k,zl],[.055,.016,.3],feather,{r:[.05,-side*.08,0],jitter:.06,tex:true});
+   }
+   for(let k=0;k<6;k++){                                                  // primaries: longest, darker, tips cross over the tail
+    const tip=1.42-.035*k,half=.58-.045*k,zl=tip-half;
+    w.add(sphFeather,[sx(zl,.06+.012*k),-.15-.035*k,zl],[.05,.014,half],feather,{r:[.07,-side*.2,0],jitter:.07,k:.82,tex:true});
+   }
    pal.wing[side]=w.build();
-   const l=new Builder(rng,O);
-   l.add(legGeo,[0,-.17,0],[1,1,1],beak);
-   l.add(box,[0,-.33,-.11],[.22,.07,.32],beak);
-   for(let k=-1;k<=1;k++)l.add(cone,[k*.065,-.345,-.27],[.025,.12,.025],dark,{r:[Math.PI/2,0,0]});
+   // Legs: feathered thigh, scaled tarsus, ankle, webbed foot with three claws (hip-local space).
+   const l=new Builder(rng,O,{uv:true});
+   l.add(sphLo,[0,.02,.02],[.11,.15,.13],plum,{jitter:.03,tex:true});
+   l.add(legGeo,[0,-.2,0],[1,1.33,1],beak);
+   l.add(sphLo,[0,-.385,0],[.055,.045,.06],beak);
+   l.addShape(footShape(),[0,-.405,-.02],[1,1,1],beak);
+   for(const [cx,cz] of[[-.17,-.36],[0,-.4],[.17,-.36]])l.add(cone,[cx,-.405,cz-.05],[.022,.11,.022],dark,{r:[-Math.PI/2,0,0]});
    pal.leg[side]=l.build();
   }
   return pal;
@@ -145,7 +250,7 @@ export function makeGooseKit(THREE,options={}){
   jaw.add(part(pal.jaw,bodyMat));
   const wings=[],legs=[];
   for(const side of[-1,1]){
-   const w=new THREE.Group();w.position.set(side*.48-T[0],1.02-T[1],.04-T[2]);w.add(part(pal.wing[side],bodyMat));torso.add(w);wings.push(w);
+   const w=new THREE.Group();w.position.set(side*SHOULDER[0]-T[0],SHOULDER[1]-T[1],SHOULDER[2]-T[2]);w.add(part(pal.wing[side],bodyMat));torso.add(w);wings.push(w);
    const l=new THREE.Group();l.position.set(side*.22,.42,-.05);l.add(part(pal.leg[side],bodyMat));root.add(l);legs.push(l);
   }
   root.rig={palette:key,state:createState(0),pose:createPose(),torso,head,jaw,wings,legs,eyes,halo,
@@ -173,8 +278,9 @@ export function makeGooseKit(THREE,options={}){
   r.torso.position.y=T[1]+p.torsoY;r.torso.rotation.set(p.torsoPitch,p.torsoYaw,p.torsoRoll);
   r.head.position.z=H[2]-T[2]+p.headZ;r.head.rotation.set(p.headPitch,p.headYaw,0);
   r.jaw.rotation.x=-p.jaw;
-  r.wings[0].rotation.set(0,p.wingSpread,-(p.wingRaise-.12));   // left wing (side -1)
-  r.wings[1].rotation.set(0,-p.wingSpread,p.wingRaise-.12);     // right wing (side +1)
+  // Wings hang folded along the flank. Raise rolls the wing open about its long axis, spread swings the tip outward.
+  r.wings[0].rotation.set(0,-p.wingSpread,-p.wingRaise);     // left wing (side -1)
+  r.wings[1].rotation.set(0,p.wingSpread,p.wingRaise);       // right wing (side +1)
   r.legs[0].rotation.x=p.legL;r.legs[1].rotation.x=p.legR;
  }
 
@@ -246,14 +352,15 @@ export function makeGooseKit(THREE,options={}){
  }
 
  function dispose(){
-  for(const g of[sphLo,sphMid,sphHead,cone,box,plane,neckGeo,legGeo])g.dispose();
+  for(const g of[sphLo,sphMid,sphHead,sphFeather,cone,box,plane,legGeo])g.dispose();
   for(const m of[bodyMat,eyeMat,eyeDeadMat,haloMat])m.dispose();
   if(glowTexture)glowTexture.dispose();
+  if(featherTexture)featherTexture.dispose();
   for(const pal of Object.values(palettes)){
    for(const k of["body","head","eyes","halo","jaw"])pal[k].dispose();
    for(const k of[-1,1]){pal.wing[k].dispose();pal.leg[k].dispose()}
   }
  }
 
- return {acquire,arm,die,dispose,stats,pools,corpses,MESHES_PER_GOOSE};
+ return {acquire,arm,die,dispose,palette,stats,pools,corpses,MESHES_PER_GOOSE};
 }
