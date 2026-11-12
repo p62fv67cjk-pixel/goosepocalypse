@@ -80,6 +80,12 @@ wss.on('connection', (ws, request) => {
         return send(ws, { type: 'error', code: 'invalid_state' });
       }
     }
+    // Only relay the documented primitive snapshot fields. Unknown or nested
+    // properties must not reach a teammate's Three.js rendering code.
+    if (msg.type === 'state' && Object.keys(msg.data).some(key =>
+      !['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key))) {
+      return send(ws, { type: 'error', code: 'invalid_state' });
+    }
     if (msg.type === 'state') {
       peer.lastState = { ...msg.data };
       peer.lastStateAt = now;
