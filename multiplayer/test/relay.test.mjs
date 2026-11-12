@@ -152,6 +152,33 @@ test('optional renderer and downed state rejects malformed values but accepts va
 });
 
 
+test('rejects unexpected state properties before they reach the other player', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  const guest = await connect();
+  const joined = receive(guest);
+  const notice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  await joined;
+  await notice;
+
+  for (const extra of [
+    { inventory: { weapon: 'injected' } },
+    { __unexpected: true },
+    { position: [1, 2, 3] }
+  ]) {
+    const rejected = receive(host);
+    host.send(JSON.stringify({ type: 'state', data: { x: 1, z: 2, ...extra } }));
+    assert.equal((await rejected).code, 'invalid_state');
+  }
+  const valid = receive(guest);
+  const snapshot = { x: 1, y: 0, z: 2, yaw: 0, health: 100, downed: false };
+  host.send(JSON.stringify({ type: 'state', data: snapshot }));
+  assert.deepEqual((await valid).data, snapshot);
+});
+
 test('revive and action packets relay to teammate; disconnected slot can be reused', async () => {
   const host = await connect();
   const created = receive(host);
