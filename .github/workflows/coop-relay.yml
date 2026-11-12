@@ -1,0 +1,24 @@
+name: Co-op relay integration
+on:
+  pull_request:
+    paths:
+      - 'multiplayer/**'
+      - '.github/workflows/coop-relay.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'multiplayer/**'
+      - '.github/workflows/coop-relay.yml'
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: multiplayer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
