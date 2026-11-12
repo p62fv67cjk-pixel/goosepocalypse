@@ -361,3 +361,34 @@ test('revive requires explicit active rescuer and throttles repeated valid reque
   host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
   assert.equal((await nextRevive).type, 'revive');
 });
+
+test('revive rejects cross-floor teammates when height is reported', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  const guest = await connect();
+  const joined = receive(guest);
+  const notice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  const info = await joined;
+  await notice;
+
+  const toGuest = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: { x: 1, y: 0, z: 1, downed: false } }));
+  await toGuest;
+  const toHost = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: { x: 2, y: 5, z: 1, downed: true } }));
+  await toHost;
+
+  const rejected = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: info.playerId } }));
+  assert.equal((await rejected).code, 'revive_not_allowed');
+
+  const update = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: { x: 2, y: 1, z: 1, downed: true } }));
+  await update;
+  const accepted = receive(guest);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: info.playerId } }));
+  assert.equal((await accepted).type, 'revive');
+});
