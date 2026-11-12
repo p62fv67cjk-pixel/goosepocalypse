@@ -106,3 +106,39 @@ test('rejects missing, nonnumeric and out-of-bounds position state', async () =>
   assert.deepEqual((await valid).data, { x: 2, z: -3 });
   assert.equal(forwarded.filter(msg => msg.type === 'state').length, 1);
 });
+
+
+test('revive and action packets relay to teammate; disconnected slot can be reused', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+
+  const guest = await connect();
+  const joined = receive(guest);
+  const hostNotice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  const guestInfo = await joined;
+  await hostNotice;
+
+  for (const type of ['action', 'revive']) {
+    const incoming = receive(guest);
+    const data = type === 'revive' ? { targetId: guestInfo.playerId } : { kind: 'fire' };
+    host.send(JSON.stringify({ type, data }));
+    const packet = await incoming;
+    assert.equal(packet.type, type);
+    assert.equal(packet.playerId, room.playerId);
+    assert.deepEqual(packet.data, data);
+  }
+
+  const left = receive(host);
+  guest.close();
+  assert.deepEqual(await left, { type: 'peer_left', playerId: guestInfo.playerId });
+
+  const replacement = await connect();
+  const replacementJoined = receive(replacement);
+  const hostRejoined = receive(host);
+  replacement.send(JSON.stringify({ type: 'join', room: room.room }));
+  assert.equal((await replacementJoined).peerId, room.playerId);
+  assert.equal((await hostRejoined).type, 'peer_joined');
+});
