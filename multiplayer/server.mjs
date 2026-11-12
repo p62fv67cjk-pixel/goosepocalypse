@@ -65,6 +65,17 @@ wss.on('connection', (ws, request) => {
         Math.abs(msg.data.x) > 10000 || Math.abs(msg.data.z) > 10000)) {
       return send(ws, { type: 'error', code: 'invalid_state' });
     }
+    // Validate optional render/animation fields before another client's renderer sees them.
+    // Do not silently coerce strings, nulls or out-of-range values into coordinates.
+    if (msg.type === 'state') {
+      const data = msg.data;
+      if ((data.y !== undefined && (!Number.isFinite(data.y) || Math.abs(data.y) > 10000)) ||
+          (data.yaw !== undefined && (!Number.isFinite(data.yaw) || Math.abs(data.yaw) > 10000)) ||
+          (data.health !== undefined && (!Number.isFinite(data.health) || data.health < 0 || data.health > 100)) ||
+          (data.downed !== undefined && typeof data.downed !== 'boolean')) {
+        return send(ws, { type: 'error', code: 'invalid_state' });
+      }
+    }
     // A revive request may only target the currently connected teammate.
     // This is routing validation, not proof that the target is downed or in range.
     if (msg.type === 'revive') {
