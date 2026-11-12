@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { WebSocket } from 'ws';
 
 const port = 19000 + Math.floor(Math.random() * 20000);
-const child = spawn(process.execPath, ['server.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, PORT: String(port) }, stdio: 'ignore' });
+const child = spawn(process.execPath, ['server.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, PORT: String(port), ALLOWED_ORIGINS: 'https://game.example' }, stdio: 'ignore' });
 const sockets = [];
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const connect = async () => {
@@ -76,6 +76,21 @@ test('unapproved browser origins are rejected before room creation', async () =>
     ws.once('close', code => { clearTimeout(timer); resolve(code); });
   });
   assert.equal(await closed, 1008);
+});
+
+test('allowlisted browser origin can connect and create a room', async () => {
+  const ws = await new Promise((resolve, reject) => {
+    const socket = new WebSocket('ws://127.0.0.1:' + port, { origin: 'https://game.example' });
+    socket.once('open', () => resolve(socket));
+    socket.once('error', reject);
+  });
+  sockets.push(ws);
+  const created = receive(ws);
+  ws.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  assert.equal(room.type, 'joined');
+  assert.equal(room.host, true);
+  assert.match(room.room, /^[a-f0-9]{24}$/);
 });
 
 test('rejects missing, nonnumeric and out-of-bounds position state', async () => {
