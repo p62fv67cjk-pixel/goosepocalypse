@@ -39,7 +39,7 @@ wss.on('connection', (ws, request) => {
       if (rooms.size >= MAX_ROOMS) return send(ws, { type: 'error', code: 'server_full' });
       let code;
       do { code = randomBytes(12).toString('hex'); } while (rooms.has(code));
-      const room = { code, players: new Map() };
+      const room = { code, players: new Map(), hostId: peer.playerId };
       rooms.set(code, room);
       room.players.set(peer.playerId, peer);
       peer.room = room;
@@ -53,7 +53,7 @@ wss.on('connection', (ws, request) => {
       room.players.set(peer.playerId, peer);
       peer.room = room;
       const hostPeer = [...room.players.values()].find(other => other !== peer);
-      send(ws, { type: 'joined', room: room.code, playerId: peer.playerId, host: false, peerId: hostPeer.playerId });
+      send(ws, { type: 'joined', room: room.code, playerId: peer.playerId, host: room.hostId === peer.playerId, peerId: hostPeer.playerId });
       for (const other of room.players.values()) if (other !== peer) send(other.ws, { type: 'peer_joined', playerId: peer.playerId });
       return;
     }
@@ -82,6 +82,11 @@ wss.on('connection', (ws, request) => {
     if (!peer.room) return;
     const room = peer.room;
     room.players.delete(peer.playerId);
+    if (room.hostId === peer.playerId && room.players.size) {
+      const successor = room.players.values().next().value;
+      room.hostId = successor.playerId;
+      send(successor.ws, { type: 'host_changed', playerId: successor.playerId });
+    }
     for (const other of room.players.values()) send(other.ws, { type: 'peer_left', playerId: peer.playerId });
     closeRoomIfEmpty(room);
     peer.room = null;
