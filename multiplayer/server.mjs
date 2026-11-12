@@ -38,7 +38,7 @@ wss.on('connection', (ws, request) => {
     if (msg.type === 'create' && !peer.room) {
       if (rooms.size >= MAX_ROOMS) return send(ws, { type: 'error', code: 'server_full' });
       let code;
-      do { code = randomBytes(4).toString('hex'); } while (rooms.has(code));
+      do { code = randomBytes(12).toString('hex'); } while (rooms.has(code));
       const room = { code, players: new Map() };
       rooms.set(code, room);
       room.players.set(peer.playerId, peer);
@@ -46,7 +46,7 @@ wss.on('connection', (ws, request) => {
       return send(ws, { type: 'joined', room: code, playerId: peer.playerId, host: true });
     }
     if (msg.type === 'join' && !peer.room) {
-      if (typeof msg.room !== 'string' || !/^[a-f0-9]{8}$/.test(msg.room)) return send(ws, { type: 'error', code: 'invalid_room' });
+      if (typeof msg.room !== 'string' || !/^[a-f0-9]{24}$/.test(msg.room)) return send(ws, { type: 'error', code: 'invalid_room' });
       const room = rooms.get(msg.room);
       if (!room) return send(ws, { type: 'error', code: 'room_not_found' });
       if (room.players.size >= 2) return send(ws, { type: 'error', code: 'room_full' });
