@@ -52,7 +52,8 @@ wss.on('connection', (ws, request) => {
       if (room.players.size >= 2) return send(ws, { type: 'error', code: 'room_full' });
       room.players.set(peer.playerId, peer);
       peer.room = room;
-      send(ws, { type: 'joined', room: room.code, playerId: peer.playerId, host: false });
+      const hostPeer = [...room.players.values()].find(other => other !== peer);
+      send(ws, { type: 'joined', room: room.code, playerId: peer.playerId, host: false, peerId: hostPeer.playerId });
       for (const other of room.players.values()) if (other !== peer) send(other.ws, { type: 'peer_joined', playerId: peer.playerId });
       return;
     }
