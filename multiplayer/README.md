@@ -1,6 +1,6 @@
 # Two-player networking foundation (not yet playable co-op)
 
-This is a **real WebSocket server**, not a simulated second player. It supplies two-person room creation, joining, bounded message relay, disconnect notification and keepalive. It does **not** yet connect to the Three.js client, synchronize enemies, authenticate players, or implement authoritative combat, revive or anti-cheat. Do not advertise the game as multiplayer yet.
+This is a **real WebSocket server**, not a simulated second player. It supplies two-person room creation, joining, bounded message relay, disconnect notification and keepalive. It does **not** yet connect to the Three.js client, synchronize enemies, authenticate players, or implement authoritative combat, revive or anti-cheat. The relay does check that a revive target is connected, reports being downed, and is within 3.5 horizontal world units of the sender's latest reported position. Both positions remain client-reported and spoofable. Do not advertise the game as multiplayer yet.
 
 ## Local run
 
@@ -8,7 +8,7 @@ From `multiplayer/`: `npm install && npm test && npm start`. For a browser clien
 
 ## Protocol
 
-Open a WebSocket to the server. Host sends `{"type":"create"}`; server returns `{"type":"joined","room":"<24 hex digits>","playerId":"...","host":true}`. Guest sends `{"type":"join","room":"<24 hex digits>"}`; server returns joined with host false. Each side can then send `{"type":"state","data":{"x":0,"z":0}}` or `action`/`revive` messages with an object `data`. Messages are forwarded to the other connected player with the sender's playerId. Room codes use 96 bits of cryptographic randomness to make guessing an invitation impractical; possession of a code is still not authentication. The relay rejects state messages without finite numeric x/z coordinates or with absolute coordinates greater than 10,000, but does not verify legitimate movement, speed, collisions or player authority. Treat all relayed actions and revive requests as untrusted.
+Open a WebSocket to the server. Host sends `{"type":"create"}`; server returns `{"type":"joined","room":"<24 hex digits>","playerId":"...","host":true}`. Guest sends `{"type":"join","room":"<24 hex digits>"}`; server returns joined with host false. Each side can then send `{"type":"state","data":{"x":0,"z":0}}` or `action`/`revive` messages with an object `data`. Messages are forwarded to the other connected player with the sender's playerId. Room codes use 96 bits of cryptographic randomness to make guessing an invitation impractical; possession of a code is still not authentication. The relay rejects state messages without finite numeric x/z coordinates or with absolute coordinates greater than 10,000, but does not verify legitimate movement, speed, collisions or player authority. Revive requests require recent reported state from both players, a downed target and a non-downed sender within 3.5 horizontal world units; the server does not verify actual location, health, or recovery and does not apply revival. Treat all relayed actions and revive requests as untrusted.
 
 ## Deployment and remaining blockers
 
