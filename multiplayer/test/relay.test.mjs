@@ -75,3 +75,19 @@ test('unapproved browser origins are rejected before room creation', async () =>
   });
   assert.equal(await closed, 1008);
 });
+
+test('rejects missing, nonnumeric and out-of-bounds position state', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  await created;
+  for (const data of [{ x: '4', z: 7 }, { x: 4 }, { x: 10001, z: 0 }, { x: null, z: 0 }]) {
+    const rejected = receive(host);
+    host.send(JSON.stringify({ type: 'state', data }));
+    assert.equal((await rejected).code, 'invalid_state');
+  }
+  const guest = await connect();
+  const joined = receive(guest);
+  guest.send(JSON.stringify({ type: 'join', room: '00000000' }));
+  assert.equal((await joined).code, 'room_not_found');
+});
