@@ -412,6 +412,14 @@ test('revive rejects cross-floor teammates when height is reported', async () =>
   host.send(JSON.stringify({ type: 'revive', data: { targetId: info.playerId } }));
   assert.equal((await rejected).code, 'revive_not_allowed');
 
+  // Missing height on one peer must not bypass cross-floor protection.
+  const missingHeightUpdate = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: { x: 2, z: 1, downed: true } }));
+  await missingHeightUpdate;
+  const missingHeightRevive = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: info.playerId } }));
+  assert.equal((await missingHeightRevive).code, 'revive_not_allowed');
+
   const update = receive(host);
   guest.send(JSON.stringify({ type: 'state', data: { x: 2, y: 1, z: 1, downed: true } }));
   await update;
