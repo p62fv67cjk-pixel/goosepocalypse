@@ -193,7 +193,7 @@ test('revive and action packets relay to teammate; disconnected slot can be reus
   await hostNotice;
 
   // Reject revives aimed at the sender, unknown players, or missing targets.
-  for (const data of [{ targetId: room.playerId }, { targetId: 'not-connected' }, {}]) {
+  for (const data of [{ targetId: room.playerId }, { targetId: 'not-connected' }, {}, { targetId: guestInfo.playerId, extra: { nested: 'untrusted' } }, { targetId: guestInfo.playerId, injected: true }]) {
     const denied = receive(host);
     host.send(JSON.stringify({ type: 'revive', data }));
     assert.equal((await denied).code, 'invalid_revive_target');
