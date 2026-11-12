@@ -80,14 +80,27 @@ test('rejects missing, nonnumeric and out-of-bounds position state', async () =>
   const host = await connect();
   const created = receive(host);
   host.send(JSON.stringify({ type: 'create' }));
-  await created;
+  const room = await created;
   for (const data of [{ x: '4', z: 7 }, { x: 4 }, { x: 10001, z: 0 }, { x: null, z: 0 }]) {
     const rejected = receive(host);
     host.send(JSON.stringify({ type: 'state', data }));
     assert.equal((await rejected).code, 'invalid_state');
   }
+  // A connected teammate must never receive invalid state, but must still
+  // receive the next valid update after the server rejects malformed data.
   const guest = await connect();
   const joined = receive(guest);
-  guest.send(JSON.stringify({ type: 'join', room: '00000000' }));
-  assert.equal((await joined).code, 'room_not_found');
+  const hostNotified = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  assert.equal((await joined).host, false);
+  await hostNotified;
+  const forwarded = [];
+  guest.on('message', raw => forwarded.push(JSON.parse(raw.toString())));
+  const rejected = receive(host);
+  host.send(JSON.stringify({ type: 'state', data: { x: 'bad', z: 0 } }));
+  assert.equal((await rejected).code, 'invalid_state');
+  const valid = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: { x: 2, z: -3 } }));
+  assert.deepEqual((await valid).data, { x: 2, z: -3 });
+  assert.equal(forwarded.filter(msg => msg.type === 'state').length, 1);
 });
