@@ -307,3 +307,39 @@ test('revive requires fresh state from both connected players', async () => {
   host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
   assert.equal((await accepted).type, 'revive');
 });
+
+test('revive requires explicit active rescuer and throttles repeated valid requests', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  const guest = await connect();
+  const joined = receive(guest);
+  const notice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  const guestInfo = await joined;
+  await notice;
+
+  const guestState = { x: 2, z: 1, downed: true };
+  const hostState = { x: 1, z: 1, downed: false };
+  const toGuest = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: { x: 1, z: 1 } }));
+  await toGuest;
+  const toHost = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: guestState }));
+  await toHost;
+  const missingStatus = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await missingStatus).code, 'revive_not_allowed');
+
+  const updated = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: hostState }));
+  await updated;
+  const first = receive(guest);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await first).type, 'revive');
+
+  const cooldown = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await cooldown).code, 'revive_cooldown');
+});
