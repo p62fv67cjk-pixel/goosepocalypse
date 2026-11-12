@@ -94,6 +94,10 @@ wss.on('connection', (ws, request) => {
     // This is routing validation, not proof that the target is downed or in range.
     if (msg.type === 'revive') {
       const targetId = msg.data.targetId;
+      // Revive is a fixed command: do not forward arbitrary nested properties.
+      if (Object.keys(msg.data).length !== 1) {
+        return send(ws, { type: 'error', code: 'invalid_revive_target' });
+      }
       if (typeof targetId !== 'string' || targetId === peer.playerId ||
           !peer.room.players.has(targetId)) {
         return send(ws, { type: 'error', code: 'invalid_revive_target' });
