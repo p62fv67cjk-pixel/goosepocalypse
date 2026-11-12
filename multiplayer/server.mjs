@@ -25,7 +25,7 @@ wss.on('connection', (ws, request) => {
     ws.close(1008, 'Origin not allowed');
     return;
   }
-  const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true };
+  const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true, lastState: null };
   peers.set(ws, peer);
   ws.on('pong', () => { peer.alive = true; });
   ws.on('message', (raw) => {
@@ -76,6 +76,7 @@ wss.on('connection', (ws, request) => {
         return send(ws, { type: 'error', code: 'invalid_state' });
       }
     }
+    if (msg.type === 'state') peer.lastState = { ...msg.data };
     // A revive request may only target the currently connected teammate.
     // This is routing validation, not proof that the target is downed or in range.
     if (msg.type === 'revive') {
@@ -83,6 +84,14 @@ wss.on('connection', (ws, request) => {
       if (typeof targetId !== 'string' || targetId === peer.playerId ||
           !peer.room.players.has(targetId)) {
         return send(ws, { type: 'error', code: 'invalid_revive_target' });
+      }
+      const target = peer.room.players.get(targetId);
+      const from = peer.lastState;
+      const to = target.lastState;
+      // This is proximity/downed validation of reported positions, not an authoritative simulation.
+      if (!from || !to || from.downed || to.downed !== true ||
+          Math.hypot(from.x - to.x, from.z - to.z) > 3.5) {
+        return send(ws, { type: 'error', code: 'revive_not_allowed' });
       }
     }
     for (const other of peer.room.players.values()) {
