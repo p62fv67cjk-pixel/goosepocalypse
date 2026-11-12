@@ -119,6 +119,9 @@ wss.on('connection', (ws, request) => {
       // must not replay a successful rescue once the cooldown expires.
       // The game client still owns health restoration until authoritative sync exists.
       target.lastState = { ...to, downed: false };
+      // Confirm accepted routing to the rescuer as well as the target. This is
+      // not authoritative health restoration; clients must still reconcile.
+      send(ws, { type: 'revive_accepted', targetId });
     }
     for (const other of peer.room.players.values()) {
       if (other !== peer) send(other.ws, { type: msg.type, playerId: peer.playerId, data: msg.data });
