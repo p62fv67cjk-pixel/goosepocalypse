@@ -8,7 +8,7 @@ From `multiplayer/`: `npm install && npm test && npm start`. For a browser clien
 
 ## Protocol
 
-Open a WebSocket to the server. Host sends `{"type":"create"}`; server returns `{"type":"joined","room":"<8 hex digits>","playerId":"...","host":true}`. Guest sends `{"type":"join","room":"<8 hex digits>"}`; server returns joined with host false. Each side can then send `{"type":"state","data":{"x":0,"z":0}}` or `action`/`revive` messages with an object `data`. Messages are forwarded to the other connected player with the sender's playerId. The server does not validate gameplay coordinates or accept the relay as authoritative game state.
+Open a WebSocket to the server. Host sends `{"type":"create"}`; server returns `{"type":"joined","room":"<8 hex digits>","playerId":"...","host":true}`. Guest sends `{"type":"join","room":"<8 hex digits>"}`; server returns joined with host false. Each side can then send `{"type":"state","data":{"x":0,"z":0}}` or `action`/`revive` messages with an object `data`. Messages are forwarded to the other connected player with the sender's playerId. The relay rejects state messages without finite numeric x/z coordinates or with absolute coordinates greater than 10,000, but does not verify legitimate movement, speed, collisions or player authority. Treat all relayed actions and revive requests as untrusted.
 
 ## Deployment and remaining blockers
 
