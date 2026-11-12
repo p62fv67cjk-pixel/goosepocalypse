@@ -65,6 +65,15 @@ wss.on('connection', (ws, request) => {
         Math.abs(msg.data.x) > 10000 || Math.abs(msg.data.z) > 10000)) {
       return send(ws, { type: 'error', code: 'invalid_state' });
     }
+    // A revive request may only target the currently connected teammate.
+    // This is routing validation, not proof that the target is downed or in range.
+    if (msg.type === 'revive') {
+      const targetId = msg.data.targetId;
+      if (typeof targetId !== 'string' || targetId === peer.playerId ||
+          !peer.room.players.has(targetId)) {
+        return send(ws, { type: 'error', code: 'invalid_revive_target' });
+      }
+    }
     for (const other of peer.room.players.values()) {
       if (other !== peer) send(other.ws, { type: msg.type, playerId: peer.playerId, data: msg.data });
     }
