@@ -9,6 +9,8 @@ const rooms = new Map();
 // Direct socket lookup avoids rebuilding every room's player list per heartbeat.
 const peers = new WeakMap();
 const MAX_ROOMS = 1000;
+// A disconnected or stalled client must not leave an indefinitely revivable snapshot.
+const REVIVE_STATE_MAX_AGE_MS = 1500;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
 // Browser origins must be explicitly configured before public deployment.
 const ALLOWED = new Set(['state', 'action', 'revive']);
@@ -25,7 +27,7 @@ wss.on('connection', (ws, request) => {
     ws.close(1008, 'Origin not allowed');
     return;
   }
-  const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true, lastState: null };
+  const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true, lastState: null, lastStateAt: 0 };
   peers.set(ws, peer);
   ws.on('pong', () => { peer.alive = true; });
   ws.on('message', (raw) => {
@@ -76,7 +78,10 @@ wss.on('connection', (ws, request) => {
         return send(ws, { type: 'error', code: 'invalid_state' });
       }
     }
-    if (msg.type === 'state') peer.lastState = { ...msg.data };
+    if (msg.type === 'state') {
+      peer.lastState = { ...msg.data };
+      peer.lastStateAt = now;
+    }
     // A revive request may only target the currently connected teammate.
     // This is routing validation, not proof that the target is downed or in range.
     if (msg.type === 'revive') {
@@ -89,7 +94,9 @@ wss.on('connection', (ws, request) => {
       const from = peer.lastState;
       const to = target.lastState;
       // This is proximity/downed validation of reported positions, not an authoritative simulation.
-      if (!from || !to || from.downed || to.downed !== true ||
+      if (!from || !to || now - peer.lastStateAt > REVIVE_STATE_MAX_AGE_MS ||
+          now - target.lastStateAt > REVIVE_STATE_MAX_AGE_MS ||
+          from.downed || to.downed !== true ||
           Math.hypot(from.x - to.x, from.z - to.z) > 3.5) {
         return send(ws, { type: 'error', code: 'revive_not_allowed' });
       }
