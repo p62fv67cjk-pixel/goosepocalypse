@@ -11,6 +11,8 @@ const peers = new WeakMap();
 const MAX_ROOMS = 1000;
 // A disconnected or stalled client must not leave an indefinitely revivable snapshot.
 const REVIVE_STATE_MAX_AGE_MS = 1500;
+// Prevent a held revive button or replayed packet from flooding a teammate.
+const REVIVE_COOLDOWN_MS = 1000;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
 // Browser origins must be explicitly configured before public deployment.
 const ALLOWED = new Set(['state', 'action', 'revive']);
@@ -27,7 +29,7 @@ wss.on('connection', (ws, request) => {
     ws.close(1008, 'Origin not allowed');
     return;
   }
-  const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true, lastState: null, lastStateAt: 0 };
+  const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true, lastState: null, lastStateAt: 0, lastReviveAt: -Infinity };
   peers.set(ws, peer);
   ws.on('pong', () => { peer.alive = true; });
   ws.on('message', (raw) => {
@@ -96,10 +98,14 @@ wss.on('connection', (ws, request) => {
       // This is proximity/downed validation of reported positions, not an authoritative simulation.
       if (!from || !to || now - peer.lastStateAt > REVIVE_STATE_MAX_AGE_MS ||
           now - target.lastStateAt > REVIVE_STATE_MAX_AGE_MS ||
-          from.downed || to.downed !== true ||
+          from.downed !== false || to.downed !== true ||
           Math.hypot(from.x - to.x, from.z - to.z) > 3.5) {
         return send(ws, { type: 'error', code: 'revive_not_allowed' });
       }
+      if (now - peer.lastReviveAt < REVIVE_COOLDOWN_MS) {
+        return send(ws, { type: 'error', code: 'revive_cooldown' });
+      }
+      peer.lastReviveAt = now;
     }
     for (const other of peer.room.players.values()) {
       if (other !== peer) send(other.ws, { type: msg.type, playerId: peer.playerId, data: msg.data });
