@@ -264,3 +264,46 @@ test('remaining guest becomes host when original host disconnects', async () => 
   assert.equal(info.peerId, guestInfo.playerId);
   assert.equal((await notice).type, 'peer_joined');
 });
+
+test('revive requires fresh state from both connected players', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  const guest = await connect();
+  const joined = receive(guest);
+  const hostNotice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  const guestInfo = await joined;
+  await hostNotice;
+
+  const hostState = { x: 1, z: 1, downed: false };
+  const guestState = { x: 2, z: 1, downed: true };
+  const toGuest = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: hostState }));
+  await toGuest;
+  const toHost = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: guestState }));
+  await toHost;
+
+  // Wait past the server's 1.5-second freshness window.
+  await sleep(1650);
+  const stale = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await stale).code, 'revive_not_allowed');
+
+  // Refreshing only the rescuer must not resurrect stale target state.
+  const refreshGuest = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: hostState }));
+  await refreshGuest;
+  const stillStale = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await stillStale).code, 'revive_not_allowed');
+
+  const refreshHost = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: guestState }));
+  await refreshHost;
+  const accepted = receive(guest);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await accepted).type, 'revive');
+});
