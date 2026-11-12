@@ -108,6 +108,35 @@ test('rejects missing, nonnumeric and out-of-bounds position state', async () =>
 });
 
 
+test('optional renderer and downed state rejects malformed values but accepts valid updates', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  const guest = await connect();
+  const joined = receive(guest);
+  const hostNotice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  await joined;
+  await hostNotice;
+
+  for (const extra of [
+    { y: '2' }, { y: null }, { y: 10001 },
+    { yaw: 'left' }, { yaw: null }, { yaw: 10001 },
+    { health: -1 }, { health: 101 }, { health: null },
+    { downed: 'false' }, { downed: 0 }
+  ]) {
+    const denied = receive(host);
+    host.send(JSON.stringify({ type: 'state', data: { x: 1, z: 2, ...extra } }));
+    assert.equal((await denied).code, 'invalid_state');
+  }
+  const valid = receive(guest);
+  const data = { x: 1, y: 2, z: 3, yaw: 1.5, health: 0, downed: true };
+  host.send(JSON.stringify({ type: 'state', data }));
+  assert.deepEqual((await valid).data, data);
+});
+
+
 test('revive and action packets relay to teammate; disconnected slot can be reused', async () => {
   const host = await connect();
   const created = receive(host);
