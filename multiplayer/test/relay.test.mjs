@@ -142,6 +142,11 @@ test('revive and action packets relay to teammate; disconnected slot can be reus
   guest.close();
   assert.deepEqual(await left, { type: 'peer_left', playerId: guestInfo.playerId });
 
+  // A disconnected teammate must no longer be a valid revival target.
+  const staleRevive = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await staleRevive).code, 'invalid_revive_target');
+
   const replacement = await connect();
   const replacementJoined = receive(replacement);
   const hostRejoined = receive(host);
