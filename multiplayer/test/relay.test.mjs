@@ -154,3 +154,32 @@ test('revive and action packets relay to teammate; disconnected slot can be reus
   assert.equal((await replacementJoined).peerId, room.playerId);
   assert.equal((await hostRejoined).type, 'peer_joined');
 });
+
+
+test('remaining guest becomes host when original host disconnects', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+
+  const guest = await connect();
+  const joined = receive(guest);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  const guestInfo = await joined;
+  assert.equal(guestInfo.host, false);
+
+  const promoted = receive(guest);
+  host.close();
+  assert.deepEqual(await promoted, { type: 'host_changed', playerId: guestInfo.playerId });
+  const departed = receive(guest);
+  assert.deepEqual(await departed, { type: 'peer_left', playerId: room.playerId });
+
+  const replacement = await connect();
+  const replacementJoined = receive(replacement);
+  const notice = receive(guest);
+  replacement.send(JSON.stringify({ type: 'join', room: room.room }));
+  const info = await replacementJoined;
+  assert.equal(info.host, false);
+  assert.equal(info.peerId, guestInfo.playerId);
+  assert.equal((await notice).type, 'peer_joined');
+});
