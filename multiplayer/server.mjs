@@ -59,6 +59,11 @@ wss.on('connection', (ws, request) => {
     if (!peer.room || !ALLOWED.has(msg.type)) return;
     // Relay only bounded, JSON-safe game payloads; never trust a client as authoritative.
     if (!msg.data || typeof msg.data !== 'object' || Array.isArray(msg.data)) return;
+    // Never relay malformed position values to another player's renderer.
+    if (msg.type === 'state' && (!Number.isFinite(msg.data.x) || !Number.isFinite(msg.data.z) ||
+        Math.abs(msg.data.x) > 10000 || Math.abs(msg.data.z) > 10000)) {
+      return send(ws, { type: 'error', code: 'invalid_state' });
+    }
     for (const other of peer.room.players.values()) {
       if (other !== peer) send(other.ws, { type: msg.type, playerId: peer.playerId, data: msg.data });
     }
