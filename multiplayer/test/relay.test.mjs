@@ -172,6 +172,29 @@ test('revive and action packets relay to teammate; disconnected slot can be reus
     assert.equal((await denied).code, 'invalid_revive_target');
   }
 
+  // A revive is allowed only after both players report nearby positions and the target is downed.
+  const beforeState = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await beforeState).code, 'revive_not_allowed');
+  const hostState = { x: 1, z: 1, downed: false };
+  const guestState = { x: 2, z: 1, downed: true };
+  const hostStateRelay = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: hostState }));
+  await hostStateRelay;
+  const guestStateRelay = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: guestState }));
+  await guestStateRelay;
+
+  const tooFarRelay = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: { x: 30, z: 1, downed: true } }));
+  await tooFarRelay;
+  const tooFar = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await tooFar).code, 'revive_not_allowed');
+  const nearAgainRelay = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: guestState }));
+  await nearAgainRelay;
+
   for (const type of ['action', 'revive']) {
     const incoming = receive(guest);
     const data = type === 'revive' ? { targetId: guestInfo.playerId } : { kind: 'fire' };
