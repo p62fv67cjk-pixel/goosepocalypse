@@ -342,4 +342,22 @@ test('revive requires explicit active rescuer and throttles repeated valid reque
   const cooldown = receive(host);
   host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
   assert.equal((await cooldown).code, 'revive_cooldown');
+
+  // A successful revive consumes the server's downed snapshot. Once the
+  // cooldown expires, replaying the same request must still be rejected.
+  await sleep(1050);
+  const replay = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await replay).code, 'revive_not_allowed');
+
+  // A new explicit downed state permits a later rescue attempt.
+  const refreshedGuest = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: hostState }));
+  await refreshedGuest;
+  const refreshedHost = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: guestState }));
+  await refreshedHost;
+  const nextRevive = receive(guest);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
+  assert.equal((await nextRevive).type, 'revive');
 });
