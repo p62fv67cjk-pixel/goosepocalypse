@@ -32,7 +32,7 @@ test('two players join and exchange genuine network messages; third player is re
   const created = receive(host);
   host.send(JSON.stringify({ type: 'create' }));
   const room = await created;
-  assert.match(room.room, /^[a-f0-9]{8}$/);
+  assert.match(room.room, /^[a-f0-9]{24}$/);
   assert.equal(room.host, true);
 
   const guest = await connect();
