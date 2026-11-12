@@ -168,11 +168,25 @@ test('remaining guest becomes host when original host disconnects', async () => 
   const guestInfo = await joined;
   assert.equal(guestInfo.host, false);
 
-  const promoted = receive(guest);
+  // Register both listeners before closing: both notifications can arrive in one tick.
+  const notices = [];
+  const bothNotices = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Host transition notices missing')), 1500);
+    const onMessage = raw => {
+      notices.push(JSON.parse(raw.toString()));
+      if (notices.length === 2) {
+        clearTimeout(timeout);
+        guest.off('message', onMessage);
+        resolve(notices);
+      }
+    };
+    guest.on('message', onMessage);
+  });
   host.close();
-  assert.deepEqual(await promoted, { type: 'host_changed', playerId: guestInfo.playerId });
-  const departed = receive(guest);
-  assert.deepEqual(await departed, { type: 'peer_left', playerId: room.playerId });
+  assert.deepEqual(await bothNotices, [
+    { type: 'host_changed', playerId: guestInfo.playerId },
+    { type: 'peer_left', playerId: room.playerId }
+  ]);
 
   const replacement = await connect();
   const replacementJoined = receive(replacement);
