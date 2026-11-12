@@ -102,7 +102,9 @@ wss.on('connection', (ws, request) => {
       if (!from || !to || now - peer.lastStateAt > REVIVE_STATE_MAX_AGE_MS ||
           now - target.lastStateAt > REVIVE_STATE_MAX_AGE_MS ||
           from.downed !== false || to.downed !== true ||
-          Math.hypot(from.x - to.x, from.z - to.z) > 3.5) {
+          Math.hypot(from.x - to.x, from.z - to.z) > 3.5 ||
+          // Do not revive across different floors when both clients report height.
+          (Number.isFinite(from.y) && Number.isFinite(to.y) && Math.abs(from.y - to.y) > 2.5)) {
         return send(ws, { type: 'error', code: 'revive_not_allowed' });
       }
       peer.lastReviveAt = now;
