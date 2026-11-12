@@ -39,7 +39,9 @@ test('two players join and exchange genuine network messages; third player is re
   const joined = receive(guest);
   const notified = receive(host);
   guest.send(JSON.stringify({ type: 'join', room: room.room }));
-  assert.equal((await joined).host, false);
+  const guestJoined = await joined;
+  assert.equal(guestJoined.host, false);
+  assert.equal(guestJoined.peerId, room.playerId);
   assert.equal((await notified).type, 'peer_joined');
 
   const relay = receive(host);
