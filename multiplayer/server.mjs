@@ -92,6 +92,9 @@ wss.on('connection', (ws, request) => {
           !peer.room.players.has(targetId)) {
         return send(ws, { type: 'error', code: 'invalid_revive_target' });
       }
+      if (now - peer.lastReviveAt < REVIVE_COOLDOWN_MS) {
+        return send(ws, { type: 'error', code: 'revive_cooldown' });
+      }
       const target = peer.room.players.get(targetId);
       const from = peer.lastState;
       const to = target.lastState;
@@ -101,9 +104,6 @@ wss.on('connection', (ws, request) => {
           from.downed !== false || to.downed !== true ||
           Math.hypot(from.x - to.x, from.z - to.z) > 3.5) {
         return send(ws, { type: 'error', code: 'revive_not_allowed' });
-      }
-      if (now - peer.lastReviveAt < REVIVE_COOLDOWN_MS) {
-        return send(ws, { type: 'error', code: 'revive_cooldown' });
       }
       peer.lastReviveAt = now;
       // Consume the downed snapshot after one accepted revive. A held button
