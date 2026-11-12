@@ -6,6 +6,8 @@ import { randomBytes } from 'node:crypto';
 const port = Number(process.env.PORT || 8787);
 const wss = new WebSocketServer({ port, maxPayload: 2048 });
 const rooms = new Map();
+// Direct socket lookup avoids rebuilding every room's player list per heartbeat.
+const peers = new WeakMap();
 const MAX_ROOMS = 1000;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
 // Browser origins must be explicitly configured before public deployment.
@@ -24,6 +26,7 @@ wss.on('connection', (ws, request) => {
     return;
   }
   const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true };
+  peers.set(ws, peer);
   ws.on('pong', () => { peer.alive = true; });
   ws.on('message', (raw) => {
     const now = Date.now();
@@ -71,9 +74,9 @@ wss.on('connection', (ws, request) => {
 });
 const heartbeat = setInterval(() => {
   for (const ws of wss.clients) {
-    const peer = [...rooms.values()].flatMap(room => [...room.players.values()]).find(p => p.ws === ws);
-    if (peer && !peer.alive) { ws.terminate(); continue; }
-    if (peer) peer.alive = false;
+    const peer = peers.get(ws);
+    if (!peer || !peer.alive) { ws.terminate(); continue; }
+    peer.alive = false;
     ws.ping();
   }
 }, 30000);
