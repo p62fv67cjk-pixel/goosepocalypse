@@ -106,6 +106,10 @@ wss.on('connection', (ws, request) => {
         return send(ws, { type: 'error', code: 'revive_cooldown' });
       }
       peer.lastReviveAt = now;
+      // Consume the downed snapshot after one accepted revive. A held button
+      // must not replay a successful rescue once the cooldown expires.
+      // The game client still owns health restoration until authoritative sync exists.
+      target.lastState = { ...to, downed: false };
     }
     for (const other of peer.room.players.values()) {
       if (other !== peer) send(other.ws, { type: msg.type, playerId: peer.playerId, data: msg.data });
