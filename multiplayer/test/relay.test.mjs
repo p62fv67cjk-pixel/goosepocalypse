@@ -224,12 +224,14 @@ test('revive and action packets relay to teammate; disconnected slot can be reus
 
   for (const type of ['action', 'revive']) {
     const incoming = receive(guest);
+    const ack = type === 'revive' ? receive(host) : null;
     const data = type === 'revive' ? { targetId: guestInfo.playerId } : { kind: 'fire' };
     host.send(JSON.stringify({ type, data }));
     const packet = await incoming;
     assert.equal(packet.type, type);
     assert.equal(packet.playerId, room.playerId);
     assert.deepEqual(packet.data, data);
+    if (ack) assert.deepEqual(await ack, { type: 'revive_accepted', targetId: guestInfo.playerId });
   }
 
   const left = receive(host);
@@ -331,8 +333,10 @@ test('revive requires fresh state from both connected players', async () => {
   guest.send(JSON.stringify({ type: 'state', data: guestState }));
   await refreshHost;
   const accepted = receive(guest);
+  const acceptedAck = receive(host);
   host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
   assert.equal((await accepted).type, 'revive');
+  assert.equal((await acceptedAck).type, 'revive_accepted');
 });
 
 test('revive requires explicit active rescuer and throttles repeated valid requests', async () => {
@@ -363,8 +367,10 @@ test('revive requires explicit active rescuer and throttles repeated valid reque
   host.send(JSON.stringify({ type: 'state', data: hostState }));
   await updated;
   const first = receive(guest);
+  const firstAck = receive(host);
   host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
   assert.equal((await first).type, 'revive');
+  assert.equal((await firstAck).type, 'revive_accepted');
 
   const cooldown = receive(host);
   host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
@@ -385,8 +391,10 @@ test('revive requires explicit active rescuer and throttles repeated valid reque
   guest.send(JSON.stringify({ type: 'state', data: guestState }));
   await refreshedHost;
   const nextRevive = receive(guest);
+  const nextAck = receive(host);
   host.send(JSON.stringify({ type: 'revive', data: { targetId: guestInfo.playerId } }));
   assert.equal((await nextRevive).type, 'revive');
+  assert.equal((await nextAck).type, 'revive_accepted');
 });
 
 test('revive rejects cross-floor teammates when height is reported', async () => {
@@ -424,6 +432,8 @@ test('revive rejects cross-floor teammates when height is reported', async () =>
   guest.send(JSON.stringify({ type: 'state', data: { x: 2, y: 1, z: 1, downed: true } }));
   await update;
   const accepted = receive(guest);
+  const acceptedAck = receive(host);
   host.send(JSON.stringify({ type: 'revive', data: { targetId: info.playerId } }));
   assert.equal((await accepted).type, 'revive');
+  assert.equal((await acceptedAck).type, 'revive_accepted');
 });
