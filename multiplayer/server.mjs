@@ -6,6 +6,9 @@ import { randomBytes } from 'node:crypto';
 const port = Number(process.env.PORT || 8787);
 const wss = new WebSocketServer({ port, maxPayload: 2048 });
 const rooms = new Map();
+const MAX_ROOMS = 1000;
+const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
+// Browser origins must be explicitly configured before public deployment.
 const ALLOWED = new Set(['state', 'action', 'revive']);
 const id = () => randomBytes(12).toString('hex');
 const send = (ws, payload) => {
@@ -14,7 +17,12 @@ const send = (ws, payload) => {
 const closeRoomIfEmpty = (room) => {
   if (room.players.size === 0) rooms.delete(room.code);
 };
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, request) => {
+  const origin = request.headers.origin;
+  if (origin && (ALLOWED_ORIGINS.size === 0 || !ALLOWED_ORIGINS.has(origin))) {
+    ws.close(1008, 'Origin not allowed');
+    return;
+  }
   const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true };
   ws.on('pong', () => { peer.alive = true; });
   ws.on('message', (raw) => {
@@ -25,6 +33,7 @@ wss.on('connection', (ws) => {
     try { msg = JSON.parse(raw.toString()); } catch { return send(ws, { type: 'error', code: 'invalid_json' }); }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
     if (msg.type === 'create' && !peer.room) {
+      if (rooms.size >= MAX_ROOMS) return send(ws, { type: 'error', code: 'server_full' });
       let code;
       do { code = randomBytes(4).toString('hex'); } while (rooms.has(code));
       const room = { code, players: new Map() };
