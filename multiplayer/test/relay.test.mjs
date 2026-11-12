@@ -59,7 +59,7 @@ test('invalid room and invalid JSON cannot crash server', async () => {
   assert.equal((await bad).code, 'invalid_json');
   const missing = receive(ws);
   ws.send(JSON.stringify({ type: 'join', room: '00000000' }));
-  assert.equal((await missing).code, 'room_not_found');
+  assert.equal((await missing).code, 'invalid_room');
 });
 
 
