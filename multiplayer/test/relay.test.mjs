@@ -61,3 +61,17 @@ test('invalid room and invalid JSON cannot crash server', async () => {
   ws.send(JSON.stringify({ type: 'join', room: '00000000' }));
   assert.equal((await missing).code, 'room_not_found');
 });
+
+
+test('unapproved browser origins are rejected before room creation', async () => {
+  const ws = new WebSocket('ws://127.0.0.1:' + port, { origin: 'https://untrusted.example' });
+  await new Promise((resolve, reject) => {
+    ws.once('open', resolve);
+    ws.once('error', reject);
+  });
+  const closed = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Origin was not rejected')), 1500);
+    ws.once('close', code => { clearTimeout(timer); resolve(code); });
+  });
+  assert.equal(await closed, 1008);
+});
