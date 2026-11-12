@@ -4,7 +4,7 @@ This is a **real WebSocket server**, not a simulated second player. It supplies 
 
 ## Local run
 
-From `multiplayer/`: `npm install && npm test && npm start`. The server listens on `PORT` (default 8787). Test coverage uses actual local WebSocket clients.
+From `multiplayer/`: `npm install && npm test && npm start`. For a browser client, configure `ALLOWED_ORIGINS=https://your-game.example` (comma-separated exact origins for multiple frontends); without this setting browser-origin connections are rejected. Non-browser clients without an Origin header are not authenticated by this check and must not be considered trusted. The server listens on `PORT` (default 8787). Test coverage uses actual local WebSocket clients.
 
 ## Protocol
 
