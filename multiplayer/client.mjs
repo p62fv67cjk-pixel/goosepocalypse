@@ -79,6 +79,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (packet.type === 'state') {
         if (!validState(packet.data)) return;
       }
+      if (packet.type === 'action' && !validAction(packet.data)) return;
       if (packet.type === 'revive' &&
           (!packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
            Object.keys(packet.data).length !== 1 || packet.data.targetId !== playerId)) return;
