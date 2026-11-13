@@ -213,3 +213,21 @@ test('outbound size limit counts UTF-8 bytes rather than JavaScript characters',
   assert.equal(ws.sent.length, 1);
   ws.close();
 });
+
+test('ignores undocumented relay events and oversized UTF-8 inbound messages', () => {
+  const events = [];
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, onEvent: e => events.push(e) });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  const before = events.length;
+  ws.packet({ type: 'future_untrusted_command', data: { kind: 'revive' } });
+  assert.equal(events.length, before);
+  // 1100 goose emoji occupy 4400 UTF-8 bytes, despite 2200 UTF-16 code units.
+  ws.packet({ type: 'error', message: '🪿'.repeat(1100) });
+  assert.equal(events.length, before);
+  ws.packet({ type: 'error', code: 'room_full' });
+  assert.equal(events.length, before + 1);
+  ws.close();
+});
