@@ -166,8 +166,9 @@ test('does not surface gameplay packets before a room is joined', () => {
   ws.packet({ type: 'error', message: 'room unavailable' });
   assert.equal(events.filter(e => e.type === 'packet').length, 1);
   ws.packet({ type: 'joined', room, playerId: idA });
+  ws.packet({ type: 'peer_joined', playerId: idB });
   ws.packet({ type: 'state', playerId: idB, data: { x: 2 } });
-  assert.equal(events.filter(e => e.type === 'packet').length, 3);
+  assert.equal(events.filter(e => e.type === 'packet').length, 4);
   ws.close();
 });
 
