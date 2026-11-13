@@ -4,7 +4,19 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
 
 const port = Number(process.env.PORT || 8787);
-const wss = new WebSocketServer({ port, maxPayload: 2048 });
+const wss = new WebSocketServer({
+  port,
+  maxPayload: 2048,
+  // Reject disallowed browser origins during the HTTP upgrade, before a
+  // WebSocket session is established or any game packets can be exchanged.
+  verifyClient: ({ origin }, done) => {
+    if (origin && (ALLOWED_ORIGINS.size === 0 || !ALLOWED_ORIGINS.has(origin))) {
+      done(false, 403, 'Origin not allowed');
+    } else {
+      done(true);
+    }
+  }
+});
 const rooms = new Map();
 // Direct socket lookup avoids rebuilding every room's player list per heartbeat.
 const peers = new WeakMap();
@@ -24,11 +36,6 @@ const closeRoomIfEmpty = (room) => {
   if (room.players.size === 0) rooms.delete(room.code);
 };
 wss.on('connection', (ws, request) => {
-  const origin = request.headers.origin;
-  if (origin && (ALLOWED_ORIGINS.size === 0 || !ALLOWED_ORIGINS.has(origin))) {
-    ws.close(1008, 'Origin not allowed');
-    return;
-  }
   const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true, lastState: null, lastStateAt: 0, lastReviveAt: -Infinity };
   peers.set(ws, peer);
   ws.on('pong', () => { peer.alive = true; });
