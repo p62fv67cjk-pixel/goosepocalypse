@@ -118,7 +118,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     sendState: (data) => {
       if (!room || !validState(data)) return false;
       const timestamp = now();
-      if (!Number.isFinite(timestamp) || timestamp - lastStateSentAt < STATE_INTERVAL_MS) return false;
+      if (!Number.isFinite(timestamp)) return false;
+      // Wall clocks can jump backwards on mobile; recover instead of freezing updates.
+      if (timestamp >= lastStateSentAt && timestamp - lastStateSentAt < STATE_INTERVAL_MS) return false;
       if (!send({ type: 'state', data })) return false;
       lastStateSentAt = timestamp;
       return true;
