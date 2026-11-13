@@ -7,6 +7,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let room = null;
   let playerId = null;
   let peerId = null;
+  const validId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/.test(value);
   const emit = (type, data = {}) => onEvent({ type, ...data });
   const send = (packet) => {
     if (!socket || socket.readyState !== WebSocketImpl.OPEN) return false;
@@ -27,11 +28,12 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       try { packet = JSON.parse(data); } catch { return; }
       if (!packet || typeof packet !== 'object' || Array.isArray(packet) || typeof packet.type !== 'string') return;
       if (packet.type === 'joined') {
-        if (!/^[a-f0-9]{24}$/.test(packet.room) || !/^[a-f0-9]{24}$/.test(packet.playerId)) return;
+        if (!validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && !validId(packet.peerId))) return;
         room = packet.room;
         playerId = packet.playerId;
-        peerId = typeof packet.peerId === 'string' ? packet.peerId : null;
+        peerId = packet.peerId || null;
       } else if (packet.type === 'peer_joined') {
+        if (!room || !validId(packet.playerId) || packet.playerId === playerId) return;
         peerId = packet.playerId;
       } else if (packet.type === 'peer_left' && peerId === packet.playerId) {
         peerId = null;
@@ -57,9 +59,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     connect, disconnect,
     createRoom: () => send({ type: 'create' }),
     joinRoom: (code) => /^[a-f0-9]{24}$/.test(code) && send({ type: 'join', room: code }),
-    sendState: (data) => send({ type: 'state', data }),
-    sendAction: (data) => send({ type: 'action', data }),
-    revive: (targetId) => typeof targetId === 'string' && targetId === peerId && send({ type: 'revive', data: { targetId } }),
+    sendState: (data) => !!room && send({ type: 'state', data }),
+    sendAction: (data) => !!room && send({ type: 'action', data }),
+    revive: (targetId) => !!room && validId(targetId) && targetId === peerId && send({ type: 'revive', data: { targetId } }),
     get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId }; }
   };
 }
