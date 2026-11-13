@@ -465,3 +465,39 @@ test('revive rejects cross-floor teammates when height is reported', async () =>
   assert.equal((await accepted).type, 'revive');
   assert.equal((await acceptedAck).type, 'revive_accepted');
 });
+
+test('rejects unexpected envelope fields on create, join and relayed packets', async () => {
+  const host = await connect();
+  for (const packet of [
+    { type: 'create', injected: { admin: true } },
+    { type: 'create', room: 'fake' }
+  ]) {
+    const denied = receive(host);
+    host.send(JSON.stringify(packet));
+    assert.equal((await denied).code, 'invalid_envelope');
+  }
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  const guest = await connect();
+  const deniedJoin = receive(guest);
+  guest.send(JSON.stringify({ type: 'join', room: room.room, admin: true }));
+  assert.equal((await deniedJoin).code, 'invalid_envelope');
+  const joined = receive(guest);
+  const hostNotice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  await joined;
+  await hostNotice;
+  for (const packet of [
+    { type: 'state', data: { x: 1, z: 2 }, injected: true },
+    { type: 'action', data: { kind: 'fire' }, debug: [1, 2] },
+    { type: 'revive', data: { targetId: room.playerId }, extra: 'x' }
+  ]) {
+    const denied = receive(guest);
+    guest.send(JSON.stringify(packet));
+    assert.equal((await denied).code, 'invalid_envelope');
+  }
+  const forwarded = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: { x: 1, z: 2 } }));
+  assert.deepEqual((await forwarded).data, { x: 1, z: 2 });
+});
