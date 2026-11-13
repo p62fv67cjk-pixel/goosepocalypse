@@ -33,9 +33,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         playerId = packet.playerId;
         peerId = packet.peerId || null;
       } else if (packet.type === 'peer_joined') {
-        if (!room || !validId(packet.playerId) || packet.playerId === playerId) return;
+        if (!room || !validId(packet.playerId) || packet.playerId === playerId || (peerId && peerId !== packet.playerId)) return;
         peerId = packet.playerId;
-      } else if (packet.type === 'peer_left' && peerId === packet.playerId) {
+      } else if (packet.type === 'peer_left') {
+        if (!room || !peerId || peerId !== packet.playerId) return;
         peerId = null;
       }
       emit('packet', { packet });
