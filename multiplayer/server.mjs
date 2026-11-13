@@ -64,6 +64,16 @@ wss.on('connection', (ws, request) => {
     if (!peer.room || !ALLOWED.has(msg.type)) return;
     // Relay only bounded, JSON-safe game payloads; never trust a client as authoritative.
     if (!msg.data || typeof msg.data !== 'object' || Array.isArray(msg.data)) return;
+    // Actions are untrusted input. Only bounded primitive fields may cross the
+    // network; nested payloads can otherwise reach future gameplay handlers.
+    if (msg.type === 'action' && (Object.keys(msg.data).length > 8 ||
+        Object.entries(msg.data).some(([key, value]) =>
+          key.length > 32 || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(key) ||
+          !((typeof value === 'string' && value.length <= 64) ||
+            typeof value === 'boolean' ||
+            (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 10000))))) {
+      return send(ws, { type: 'error', code: 'invalid_action' });
+    }
     // Never relay malformed position values to another player's renderer.
     if (msg.type === 'state' && (!Number.isFinite(msg.data.x) || !Number.isFinite(msg.data.z) ||
         Math.abs(msg.data.x) > 10000 || Math.abs(msg.data.z) > 10000)) {
