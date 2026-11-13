@@ -31,10 +31,13 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (current === generation) emit('connected');
     });
     ws.addEventListener('message', ({ data }) => {
-      if (current !== generation || typeof data !== 'string' || data.length > 4096) return;
+      if (current !== generation || typeof data !== 'string' || new TextEncoder().encode(data).byteLength > 4096) return;
       let packet;
       try { packet = JSON.parse(data); } catch { return; }
       if (!packet || typeof packet !== 'object' || Array.isArray(packet) || typeof packet.type !== 'string') return;
+      // Only documented relay events may reach game UI handlers.
+      if (!['joined', 'peer_joined', 'peer_left', 'state', 'action', 'revive',
+        'revive_accepted', 'host_changed', 'error'].includes(packet.type)) return;
       if (packet.type === 'joined') {
         if (room || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
         room = packet.room;
