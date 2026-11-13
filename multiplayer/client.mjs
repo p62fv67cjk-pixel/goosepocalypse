@@ -58,6 +58,22 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         // A departed or replaced peer must not drive the renderer or revive UI.
         return;
       }
+      // Treat network snapshots as untrusted even when the relay is expected to validate.
+      // Never hand malformed positions or nested data to Three.js gameplay handlers.
+      if (packet.type === 'state') {
+        const d = packet.data;
+        if (!d || typeof d !== 'object' || Array.isArray(d) ||
+            !Number.isFinite(d.x) || !Number.isFinite(d.z) ||
+            Math.abs(d.x) > 10000 || Math.abs(d.z) > 10000 ||
+            Object.keys(d).some(key => !['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key)) ||
+            (d.y !== undefined && (!Number.isFinite(d.y) || Math.abs(d.y) > 10000)) ||
+            (d.yaw !== undefined && (!Number.isFinite(d.yaw) || Math.abs(d.yaw) > 10000)) ||
+            (d.health !== undefined && (!Number.isFinite(d.health) || d.health < 0 || d.health > 100)) ||
+            (d.downed !== undefined && typeof d.downed !== 'boolean')) return;
+      }
+      if (packet.type === 'revive' &&
+          (!packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
+           Object.keys(packet.data).length !== 1 || packet.data.targetId !== playerId)) return;
       emit('packet', { packet });
     });
     ws.addEventListener('close', () => {
