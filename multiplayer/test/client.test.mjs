@@ -97,3 +97,20 @@ test('does not send gameplay before joining and rejects forged teammate identiti
   ws.close();
   assert.equal(client.sendState({ x: 1 }), false);
 });
+
+test('joined packets cannot replace established identity or assign self as peer', () => {
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: idA });
+  assert.equal(client.status.room, null);
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
+  assert.equal(client.status.playerId, idA);
+  assert.equal(client.status.peerId, idB);
+  ws.packet({ type: 'joined', room: 'd'.repeat(24), playerId: idB });
+  assert.equal(client.status.room, room);
+  assert.equal(client.status.playerId, idA);
+  assert.equal(client.status.peerId, idB);
+  ws.close();
+});
