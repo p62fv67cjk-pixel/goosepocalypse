@@ -48,6 +48,11 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       } else if (!room && packet.type !== 'error') {
         // Do not expose gameplay packets before room membership is established.
         return;
+      } else if (['state', 'action', 'revive'].includes(packet.type) &&
+          (!peerId || packet.playerId !== peerId)) {
+        // Only the currently announced teammate may produce gameplay events.
+        // A departed or replaced peer must not drive the renderer or revive UI.
+        return;
       }
       emit('packet', { packet });
     });
