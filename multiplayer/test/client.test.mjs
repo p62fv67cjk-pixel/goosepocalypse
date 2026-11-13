@@ -74,3 +74,26 @@ test('rejects malformed inbound packets and room codes without sending', () => {
   assert.equal(client.joinRoom(room), true);
   assert.deepEqual(ws.sent.at(-1), { type: 'join', room });
 });
+
+test('does not send gameplay before joining and rejects forged teammate identities', () => {
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  assert.equal(client.sendState({ x: 1 }), false);
+  assert.equal(client.sendAction({ kind: 'fire' }), false);
+  ws.packet({ type: 'peer_joined', playerId: idB });
+  assert.equal(client.status.peerId, null);
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: 'invalid' });
+  assert.equal(client.status.room, null);
+  ws.packet({ type: 'joined', room, playerId: idA });
+  ws.packet({ type: 'peer_joined', playerId: 'invalid' });
+  ws.packet({ type: 'peer_joined', playerId: idA });
+  assert.equal(client.status.peerId, null);
+  ws.packet({ type: 'peer_joined', playerId: idB });
+  assert.equal(client.status.peerId, idB);
+  assert.equal(client.sendAction({ kind: 'fire' }), true);
+  assert.equal(ws.sent.length, 1);
+  ws.close();
+  assert.equal(client.sendState({ x: 1 }), false);
+});
