@@ -84,6 +84,11 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         if (!validState(packet.data)) return;
       }
       if (packet.type === 'action' && !validAction(packet.data)) return;
+      // Control acknowledgements are also untrusted. Never show a rescue for
+      // an unrelated target, or a host transition for another player.
+      if (packet.type === 'revive_accepted' &&
+          (!peerId || packet.targetId !== peerId)) return;
+      if (packet.type === 'host_changed' && packet.playerId !== playerId) return;
       if (packet.type === 'revive' &&
           (!packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
            Object.keys(packet.data).length !== 1 || packet.data.targetId !== playerId)) return;
