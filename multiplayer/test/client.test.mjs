@@ -152,3 +152,21 @@ test('outbound packets fail safely on cycles, oversized data and socket send err
   assert.equal(client.sendState({ x: 1, z: 2 }), false);
   ws.close();
 });
+
+test('does not surface gameplay packets before a room is joined', () => {
+  const events = [];
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, onEvent: e => events.push(e) });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'state', playerId: idB, data: { x: 2 } });
+  ws.packet({ type: 'action', playerId: idB, data: { kind: 'fire' } });
+  ws.packet({ type: 'revived', playerId: idB });
+  assert.equal(events.filter(e => e.type === 'packet').length, 0);
+  ws.packet({ type: 'error', message: 'room unavailable' });
+  assert.equal(events.filter(e => e.type === 'packet').length, 1);
+  ws.packet({ type: 'joined', room, playerId: idA });
+  ws.packet({ type: 'state', playerId: idB, data: { x: 2 } });
+  assert.equal(events.filter(e => e.type === 'packet').length, 3);
+  ws.close();
+});
