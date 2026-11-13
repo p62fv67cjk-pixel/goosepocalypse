@@ -9,6 +9,15 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let peerId = null;
   const validId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/.test(value);
   const emit = (type, data = {}) => onEvent({ type, ...data });
+  // Apply the same bounded snapshot contract before sending as when receiving.
+  const validState = (d) => !!d && typeof d === 'object' && !Array.isArray(d) &&
+    Number.isFinite(d.x) && Number.isFinite(d.z) &&
+    Math.abs(d.x) <= 10000 && Math.abs(d.z) <= 10000 &&
+    Object.keys(d).every(key => ['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key)) &&
+    (d.y === undefined || (Number.isFinite(d.y) && Math.abs(d.y) <= 10000)) &&
+    (d.yaw === undefined || (Number.isFinite(d.yaw) && Math.abs(d.yaw) <= 10000)) &&
+    (d.health === undefined || (Number.isFinite(d.health) && d.health >= 0 && d.health <= 100)) &&
+    (d.downed === undefined || typeof d.downed === 'boolean');
   const send = (packet) => {
     if (!socket || socket.readyState !== WebSocketImpl.OPEN) return false;
     // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
@@ -61,15 +70,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       // Treat network snapshots as untrusted even when the relay is expected to validate.
       // Never hand malformed positions or nested data to Three.js gameplay handlers.
       if (packet.type === 'state') {
-        const d = packet.data;
-        if (!d || typeof d !== 'object' || Array.isArray(d) ||
-            !Number.isFinite(d.x) || !Number.isFinite(d.z) ||
-            Math.abs(d.x) > 10000 || Math.abs(d.z) > 10000 ||
-            Object.keys(d).some(key => !['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key)) ||
-            (d.y !== undefined && (!Number.isFinite(d.y) || Math.abs(d.y) > 10000)) ||
-            (d.yaw !== undefined && (!Number.isFinite(d.yaw) || Math.abs(d.yaw) > 10000)) ||
-            (d.health !== undefined && (!Number.isFinite(d.health) || d.health < 0 || d.health > 100)) ||
-            (d.downed !== undefined && typeof d.downed !== 'boolean')) return;
+        if (!validState(packet.data)) return;
       }
       if (packet.type === 'revive' &&
           (!packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
@@ -97,7 +98,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     connect, disconnect,
     createRoom: () => send({ type: 'create' }),
     joinRoom: (code) => /^[a-f0-9]{24}$/.test(code) && send({ type: 'join', room: code }),
-    sendState: (data) => !!room && send({ type: 'state', data }),
+    sendState: (data) => !!room && validState(data) && send({ type: 'state', data }),
     sendAction: (data) => !!room && send({ type: 'action', data }),
     revive: (targetId) => !!room && validId(targetId) && targetId === peerId && send({ type: 'revive', data: { targetId } }),
     get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId }; }
