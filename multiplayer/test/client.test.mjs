@@ -168,7 +168,7 @@ test('does not surface gameplay packets before a room is joined', () => {
   assert.equal(events.filter(e => e.type === 'packet').length, 1);
   ws.packet({ type: 'joined', room, playerId: idA });
   ws.packet({ type: 'peer_joined', playerId: idB });
-  ws.packet({ type: 'state', playerId: idB, data: { x: 2 } });
+  ws.packet({ type: 'state', playerId: idB, data: { x: 2, z: 0 } });
   assert.equal(events.filter(e => e.type === 'packet').length, 4);
   ws.close();
 });
@@ -229,5 +229,27 @@ test('ignores undocumented relay events and oversized UTF-8 inbound messages', (
   assert.equal(events.length, before);
   ws.packet({ type: 'error', code: 'room_full' });
   assert.equal(events.length, before + 1);
+  ws.close();
+});
+
+
+test('rejects malformed teammate snapshots and revives not addressed to this player', () => {
+  const events = [];
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, onEvent: e => events.push(e) });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
+  const gameplay = () => events.filter(e => e.type === 'packet' && ['state', 'revive'].includes(e.packet.type));
+  ws.packet({ type: 'state', playerId: idB, data: { x: 1 } });
+  ws.packet({ type: 'state', playerId: idB, data: { x: 1, z: 2, health: 101 } });
+  ws.packet({ type: 'state', playerId: idB, data: { x: 1, z: 2, nested: { unsafe: true } } });
+  ws.packet({ type: 'state', playerId: idB, data: { x: 1, z: 2, downed: 'false' } });
+  ws.packet({ type: 'revive', playerId: idB, data: { targetId: idB } });
+  ws.packet({ type: 'revive', playerId: idB, data: { targetId: idA, extra: true } });
+  assert.equal(gameplay().length, 0);
+  ws.packet({ type: 'state', playerId: idB, data: { x: 1, z: 2, y: 0, downed: true } });
+  ws.packet({ type: 'revive', playerId: idB, data: { targetId: idA } });
+  assert.equal(gameplay().length, 2);
   ws.close();
 });
