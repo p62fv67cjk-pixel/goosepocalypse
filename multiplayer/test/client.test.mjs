@@ -349,3 +349,30 @@ test('failed state sends do not consume the next throttle slot', () => {
   assert.equal(client.sendState({ x: 1, z: 0 }), true);
   ws.close();
 });
+
+test('ignores forged revive acknowledgements and host changes', () => {
+  const events = [];
+  const client = createCoopClient({
+    url: 'wss://example.org', WebSocketImpl: FakeSocket,
+    onEvent: event => events.push(event)
+  });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA, host: true });
+  ws.packet({ type: 'peer_joined', playerId: idB });
+  const packets = () => events.filter(event => event.type === 'packet').map(event => event.packet);
+  const before = packets().length;
+  ws.packet({ type: 'revive_accepted', targetId: idA });
+  ws.packet({ type: 'revive_accepted', targetId: 'd'.repeat(24) });
+  ws.packet({ type: 'host_changed', playerId: idB });
+  assert.equal(packets().length, before, 'forged control messages must not reach UI');
+  ws.packet({ type: 'revive_accepted', targetId: idB });
+  ws.packet({ type: 'host_changed', playerId: idA });
+  assert.deepEqual(packets().slice(-2).map(packet => packet.type),
+    ['revive_accepted', 'host_changed']);
+  ws.packet({ type: 'peer_left', playerId: idB });
+  const afterLeave = packets().length;
+  ws.packet({ type: 'revive_accepted', targetId: idB });
+  assert.equal(packets().length, afterLeave, 'departed teammate cannot be revived');
+});
