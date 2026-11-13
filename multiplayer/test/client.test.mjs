@@ -289,3 +289,22 @@ test('outbound actions follow relay primitive field limits', () => {
   assert.deepEqual(ws.sent[0], { type: 'action', data: { kind: 'fire', held: false, angle: 1.5 } });
   ws.close();
 });
+
+test('rejects malformed inbound teammate actions before gameplay dispatch', () => {
+  const events = [];
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, onEvent: e => events.push(e) });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
+  const actions = () => events.filter(e => e.type === 'packet' && e.packet.type === 'action');
+  for (const data of [null, [], { nested: {} }, { note: 'x'.repeat(65) },
+    { 'bad-key': true }, { angle: 10001 }, { angle: 'x', extra: [] },
+    { a: 1, b: 1, c: 1, d: 1, e: 1, f: 1, g: 1, h: 1, i: 1 }]) {
+    ws.packet({ type: 'action', playerId: idB, data });
+  }
+  assert.equal(actions().length, 0);
+  ws.packet({ type: 'action', playerId: idB, data: { kind: 'fire', held: true, angle: 0.5 } });
+  assert.equal(actions().length, 1);
+  ws.close();
+});
