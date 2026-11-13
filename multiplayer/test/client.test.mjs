@@ -415,3 +415,27 @@ test('a throwing mobile clock cannot crash the game loop or consume pacing', () 
   assert.equal(ws.sent.length, 2);
   ws.close();
 });
+
+test('disconnect completes and allows reconnect when socket.close throws', () => {
+  const events = [];
+  const client = createCoopClient({
+    url: 'wss://example.org', WebSocketImpl: FakeSocket,
+    onEvent: event => events.push(event)
+  });
+  client.connect();
+  const first = FakeSocket.instances.at(-1);
+  first.open();
+  first.packet({ type: 'joined', room, playerId: idA });
+  first.close = () => { throw new Error('iOS socket teardown failed'); };
+  assert.doesNotThrow(() => client.disconnect());
+  assert.deepEqual(client.status, { connected: false, room: null, playerId: null, peerId: null });
+  assert.equal(events.filter(event => event.type === 'disconnected').length, 1);
+  client.connect();
+  const second = FakeSocket.instances.at(-1);
+  second.open();
+  second.packet({ type: 'joined', room, playerId: idB });
+  assert.equal(client.status.playerId, idB);
+  first.fire('close');
+  assert.equal(client.status.playerId, idB, 'stale socket must not clear the new session');
+  second.close();
+});
