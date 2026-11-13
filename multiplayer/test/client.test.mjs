@@ -47,6 +47,7 @@ test('ignores stale sockets after reconnect and clears room state on disconnect'
   first.open();
   first.packet({ type: 'joined', room, playerId: idA });
   client.disconnect();
+  assert.equal(events.filter(e => e.type === 'disconnected').length, 1, 'explicit disconnect must clear teammate UI immediately');
   assert.equal(client.status.room, null);
   assert.equal(client.status.connected, false);
   client.connect();
@@ -59,7 +60,7 @@ test('ignores stale sockets after reconnect and clears room state on disconnect'
   assert.equal(client.status.playerId, idB);
   second.close();
   assert.equal(client.status.room, null);
-  assert.equal(events.filter(e => e.type === 'disconnected').length, 1);
+  assert.equal(events.filter(e => e.type === 'disconnected').length, 2, 'stale socket close must not emit an extra disconnect');
 });
 test('rejects malformed inbound packets and room codes without sending', () => {
   const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
