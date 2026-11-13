@@ -195,3 +195,21 @@ test('accepts gameplay only from the currently connected teammate', () => {
   assert.equal(gameplay().length, 2);
   ws.close();
 });
+
+test('outbound size limit counts UTF-8 bytes rather than JavaScript characters', () => {
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  // A surrogate-pair emoji is two UTF-16 code units but four UTF-8 bytes.
+  // This packet is below 2048 JS characters yet exceeds the relay's byte limit.
+  const unicodePacket = { type: 'action', data: { note: '🪿'.repeat(650) } };
+  assert.ok(JSON.stringify(unicodePacket).length < 2048);
+  assert.ok(Buffer.byteLength(JSON.stringify(unicodePacket), 'utf8') > 2048);
+  assert.equal(client.sendAction(unicodePacket.data), false);
+  assert.equal(ws.sent.length, 0);
+  assert.equal(client.sendAction({ kind: 'fire' }), true);
+  assert.equal(ws.sent.length, 1);
+  ws.close();
+});
