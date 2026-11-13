@@ -376,3 +376,20 @@ test('ignores forged revive acknowledgements and host changes', () => {
   ws.packet({ type: 'revive_accepted', targetId: idB });
   assert.equal(packets().length, afterLeave, 'departed teammate cannot be revived');
 });
+
+test('recovers state pacing after a backwards mobile clock adjustment', () => {
+  let time = 10000;
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, now: () => time });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  assert.equal(client.sendState({ x: 0, z: 0 }), true);
+  time = 100;
+  assert.equal(client.sendState({ x: 1, z: 0 }), true, 'clock rollback must not freeze state for seconds');
+  assert.equal(client.sendState({ x: 2, z: 0 }), false, 'pacing must resume immediately');
+  time = 200;
+  assert.equal(client.sendState({ x: 3, z: 0 }), true);
+  assert.equal(ws.sent.length, 3);
+  ws.close();
+});
