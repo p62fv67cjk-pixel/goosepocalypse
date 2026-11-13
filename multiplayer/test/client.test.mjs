@@ -272,3 +272,20 @@ test('outgoing state rejects malformed snapshots without sending to relay', () =
   assert.equal(ws.sent.length, 1);
   ws.close();
 });
+
+
+test('outbound actions follow relay primitive field limits', () => {
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  const invalid = [null, [], { nested: {} }, { note: 'x'.repeat(65) },
+    { 'bad-key': 1 }, { a: Infinity }, { a: 10001 },
+    { a: 1, b: 1, c: 1, d: 1, e: 1, f: 1, g: 1, h: 1, i: 1 }];
+  for (const data of invalid) assert.equal(client.sendAction(data), false);
+  assert.equal(ws.sent.length, 0);
+  assert.equal(client.sendAction({ kind: 'fire', held: false, angle: 1.5 }), true);
+  assert.deepEqual(ws.sent[0], { type: 'action', data: { kind: 'fire', held: false, angle: 1.5 } });
+  ws.close();
+});
