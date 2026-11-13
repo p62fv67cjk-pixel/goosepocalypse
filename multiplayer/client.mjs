@@ -1,5 +1,5 @@
 // Browser-side transport only. No fake local multiplayer or health authority.
-export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, onEvent = () => {} }) {
+export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, onEvent = () => {}, now = () => Date.now() }) {
   if (!/^wss:\/\//.test(url)) throw new Error('Public multiplayer requires wss://');
   if (typeof WebSocketImpl !== 'function') throw new Error('WebSocket unavailable');
   let socket = null;
@@ -7,6 +7,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let room = null;
   let playerId = null;
   let peerId = null;
+  let lastStateSentAt = -Infinity;
+  // A 60fps render loop must not trip the relay's 30-message/second disconnect limit.
+  const STATE_INTERVAL_MS = 100;
   const validId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/.test(value);
   const emit = (type, data = {}) => onEvent({ type, ...data });
   // Apply the same bounded snapshot contract before sending as when receiving.
@@ -56,6 +59,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         'revive_accepted', 'host_changed', 'error'].includes(packet.type)) return;
       if (packet.type === 'joined') {
         if (room || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
+        lastStateSentAt = -Infinity;
         room = packet.room;
         playerId = packet.playerId;
         peerId = packet.peerId || null;
@@ -87,7 +91,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     });
     ws.addEventListener('close', () => {
       if (current !== generation) return;
-      socket = null; room = null; playerId = null; peerId = null;
+      socket = null; room = null; playerId = null; peerId = null; lastStateSentAt = -Infinity; lastStateSentAt = -Infinity;
       emit('disconnected');
     });
     ws.addEventListener('error', () => {
@@ -106,7 +110,14 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     connect, disconnect,
     createRoom: () => send({ type: 'create' }),
     joinRoom: (code) => /^[a-f0-9]{24}$/.test(code) && send({ type: 'join', room: code }),
-    sendState: (data) => !!room && validState(data) && send({ type: 'state', data }),
+    sendState: (data) => {
+      if (!room || !validState(data)) return false;
+      const timestamp = now();
+      if (!Number.isFinite(timestamp) || timestamp - lastStateSentAt < STATE_INTERVAL_MS) return false;
+      if (!send({ type: 'state', data })) return false;
+      lastStateSentAt = timestamp;
+      return true;
+    },
     sendAction: (data) => !!room && validAction(data) && send({ type: 'action', data }),
     revive: (targetId) => !!room && validId(targetId) && targetId === peerId && send({ type: 'revive', data: { targetId } }),
     get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId }; }
