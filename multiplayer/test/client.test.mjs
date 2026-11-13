@@ -136,3 +136,19 @@ test('conflicting peer announcements and stale departures cannot replace active 
   assert.equal(client.status.peerId, thirdId);
   ws.close();
 });
+
+test('outbound packets fail safely on cycles, oversized data and socket send errors', () => {
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  const cyclic = {};
+  cyclic.self = cyclic;
+  assert.equal(client.sendAction(cyclic), false);
+  assert.equal(client.sendAction({ note: 'x'.repeat(3000) }), false);
+  assert.equal(ws.sent.length, 0);
+  ws.send = () => { throw new Error('Socket closing'); };
+  assert.equal(client.sendState({ x: 1, z: 2 }), false);
+  ws.close();
+});
