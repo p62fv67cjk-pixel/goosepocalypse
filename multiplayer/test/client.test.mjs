@@ -253,3 +253,22 @@ test('rejects malformed teammate snapshots and revives not addressed to this pla
   assert.equal(gameplay().length, 2);
   ws.close();
 });
+
+test('outgoing state rejects malformed snapshots without sending to relay', () => {
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  const invalid = [
+    null, [], { x: 1 }, { x: NaN, z: 2 }, { x: Infinity, z: 2 },
+    { x: 10001, z: 0 }, { x: 1, z: 2, y: Infinity },
+    { x: 1, z: 2, health: -1 }, { x: 1, z: 2, downed: 'false' },
+    { x: 1, z: 2, nested: {} }
+  ];
+  for (const data of invalid) assert.equal(client.sendState(data), false);
+  assert.equal(ws.sent.length, 0);
+  assert.equal(client.sendState({ x: 1, y: 0, z: 2, yaw: 1, health: 50, downed: false }), true);
+  assert.equal(ws.sent.length, 1);
+  ws.close();
+});
