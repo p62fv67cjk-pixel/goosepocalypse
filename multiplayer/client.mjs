@@ -11,8 +11,15 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   const emit = (type, data = {}) => onEvent({ type, ...data });
   const send = (packet) => {
     if (!socket || socket.readyState !== WebSocketImpl.OPEN) return false;
-    socket.send(JSON.stringify(packet));
-    return true;
+    // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
+    try {
+      const encoded = JSON.stringify(packet);
+      if (!encoded || encoded.length > 2048) return false;
+      socket.send(encoded);
+      return true;
+    } catch {
+      return false;
+    }
   };
   function connect() {
     if (socket) throw new Error('Already connected; disconnect first');
