@@ -179,6 +179,34 @@ test('rejects unexpected state properties before they reach the other player', a
   assert.deepEqual((await valid).data, snapshot);
 });
 
+test('rejects nested or unbounded actions without poisoning subsequent valid relay', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  const guest = await connect();
+  const joined = receive(guest);
+  const notice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  await joined;
+  await notice;
+  for (const data of [
+    { kind: 'fire', inventory: { ammo: 999 } },
+    { kind: 'fire', target: [1, 2] },
+    { kind: 'x'.repeat(65) },
+    { kind: 'fire', distance: 10001 },
+    { kind: 'fire', extra: null },
+    Object.fromEntries(Array.from({ length: 9 }, (_, i) => ['key' + i, true]))
+  ]) {
+    const denied = receive(host);
+    host.send(JSON.stringify({ type: 'action', data }));
+    assert.equal((await denied).code, 'invalid_action');
+  }
+  const forwarded = receive(guest);
+  host.send(JSON.stringify({ type: 'action', data: { kind: 'fire', aiming: true, yaw: 1.2 } }));
+  assert.deepEqual((await forwarded).data, { kind: 'fire', aiming: true, yaw: 1.2 });
+});
+
 test('revive and action packets relay to teammate; disconnected slot can be reused', async () => {
   const host = await connect();
   const created = receive(host);
