@@ -14,7 +14,8 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
     try {
       const encoded = JSON.stringify(packet);
-      if (!encoded || encoded.length > 2048) return false;
+      // Relay enforces bytes, not UTF-16 code units (emoji/non-ASCII can exceed the limit).
+      if (!encoded || new TextEncoder().encode(encoded).byteLength > 2048) return false;
       socket.send(encoded);
       return true;
     } catch {
