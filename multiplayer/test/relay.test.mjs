@@ -65,17 +65,20 @@ test('invalid room and invalid JSON cannot crash server', async () => {
 });
 
 
-test('unapproved browser origins are rejected before room creation', async () => {
+test('unapproved browser origins are rejected during HTTP upgrade', async () => {
   const ws = new WebSocket('ws://127.0.0.1:' + port, { origin: 'https://untrusted.example' });
-  await new Promise((resolve, reject) => {
-    ws.once('open', resolve);
-    ws.once('error', reject);
+  const result = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Origin upgrade was not rejected')), 1500);
+    ws.once('open', () => { clearTimeout(timeout); reject(new Error('Untrusted origin opened a WebSocket')); });
+    ws.once('unexpected-response', (_request, response) => {
+      clearTimeout(timeout);
+      response.resume();
+      resolve(response.statusCode);
+    });
+    ws.once('error', error => { clearTimeout(timeout); reject(error); });
   });
-  const closed = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Origin was not rejected')), 1500);
-    ws.once('close', code => { clearTimeout(timer); resolve(code); });
-  });
-  assert.equal(await closed, 1008);
+  assert.equal(result, 403);
+  ws.terminate();
 });
 
 test('allowlisted browser origin can connect and create a room', async () => {
