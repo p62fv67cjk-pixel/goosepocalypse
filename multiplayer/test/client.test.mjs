@@ -114,3 +114,25 @@ test('joined packets cannot replace established identity or assign self as peer'
   assert.equal(client.status.peerId, idB);
   ws.close();
 });
+
+test('conflicting peer announcements and stale departures cannot replace active teammate', () => {
+  const events = [];
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, onEvent: e => events.push(e) });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
+  const thirdId = 'd'.repeat(24);
+  const before = events.length;
+  ws.packet({ type: 'peer_joined', playerId: thirdId });
+  ws.packet({ type: 'peer_left', playerId: thirdId });
+  assert.equal(client.status.peerId, idB);
+  assert.equal(events.length, before);
+  assert.equal(client.revive(idB), true);
+  assert.equal(client.revive(thirdId), false);
+  ws.packet({ type: 'peer_left', playerId: idB });
+  assert.equal(client.status.peerId, null);
+  ws.packet({ type: 'peer_joined', playerId: thirdId });
+  assert.equal(client.status.peerId, thirdId);
+  ws.close();
+});
