@@ -308,3 +308,44 @@ test('rejects malformed inbound teammate actions before gameplay dispatch', () =
   assert.equal(actions().length, 1);
   ws.close();
 });
+
+test('throttles 60fps state snapshots without disconnecting and resets on rejoin', () => {
+  let time = 1000;
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, now: () => time });
+  client.connect();
+  const first = FakeSocket.instances.at(-1);
+  first.open();
+  first.packet({ type: 'joined', room, playerId: idA });
+  let accepted = 0;
+  for (let frame = 0; frame < 60; frame++) {
+    if (client.sendState({ x: frame, z: 0 })) accepted++;
+    time += 1000 / 60;
+  }
+  assert.ok(accepted >= 9 && accepted <= 11, 'only ~10 updates per second should reach relay');
+  assert.equal(first.sent.length, accepted);
+  client.disconnect();
+  client.connect();
+  const second = FakeSocket.instances.at(-1);
+  second.open();
+  second.packet({ type: 'joined', room, playerId: idB });
+  assert.equal(client.sendState({ x: 0, z: 0 }), true, 'new room gets an immediate snapshot');
+  assert.equal(client.sendState({ x: 1, z: 0 }), false, 'consecutive snapshots are throttled');
+  time += 100;
+  assert.equal(client.sendState({ x: 2, z: 0 }), true);
+  second.close();
+});
+
+test('failed state sends do not consume the next throttle slot', () => {
+  let time = 1000;
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, now: () => time });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  const original = ws.send;
+  ws.send = () => { throw new Error('temporary send failure'); };
+  assert.equal(client.sendState({ x: 1, z: 0 }), false);
+  ws.send = original;
+  assert.equal(client.sendState({ x: 1, z: 0 }), true);
+  ws.close();
+});
