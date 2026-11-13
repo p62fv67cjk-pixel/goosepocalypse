@@ -69,7 +69,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     ++generation;
     const old = socket;
     socket = null; room = null; playerId = null; peerId = null;
-    if (old) old.close();
+    if (old) {
+      try { old.close(); } finally { emit('disconnected'); }
+    }
   }
   return {
     connect, disconnect,
