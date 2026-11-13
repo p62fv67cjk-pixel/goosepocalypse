@@ -504,3 +504,37 @@ test('rejects unexpected envelope fields on create, join and relayed packets', a
   guest.send(JSON.stringify({ type: 'state', data: { x: 1, z: 2 } }));
   assert.deepEqual((await forwarded).data, { x: 1, z: 2 });
 });
+
+test('revive reach measures true three-dimensional distance near stairs', async () => {
+  const host = await connect();
+  const created = receive(host);
+  host.send(JSON.stringify({ type: 'create' }));
+  const room = await created;
+  const guest = await connect();
+  const joined = receive(guest);
+  const notice = receive(host);
+  guest.send(JSON.stringify({ type: 'join', room: room.room }));
+  const info = await joined;
+  await notice;
+
+  const toGuest = receive(guest);
+  host.send(JSON.stringify({ type: 'state', data: { x: 0, y: 0, z: 0, downed: false } }));
+  await toGuest;
+  const toHost = receive(host);
+  // Horizontal reach 3 and height 2 individually pass the old checks,
+  // but the actual distance sqrt(13) exceeds the 3.5-unit revive radius.
+  guest.send(JSON.stringify({ type: 'state', data: { x: 3, y: 2, z: 0, downed: true } }));
+  await toHost;
+  const denied = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: info.playerId } }));
+  assert.equal((await denied).code, 'revive_not_allowed');
+
+  const nearer = receive(host);
+  guest.send(JSON.stringify({ type: 'state', data: { x: 2, y: 2, z: 0, downed: true } }));
+  await nearer;
+  const accepted = receive(guest);
+  const acknowledgement = receive(host);
+  host.send(JSON.stringify({ type: 'revive', data: { targetId: info.playerId } }));
+  assert.equal((await accepted).type, 'revive');
+  assert.equal((await acknowledgement).type, 'revive_accepted');
+});
