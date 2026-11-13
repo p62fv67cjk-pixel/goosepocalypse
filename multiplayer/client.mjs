@@ -117,7 +117,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     joinRoom: (code) => /^[a-f0-9]{24}$/.test(code) && send({ type: 'join', room: code }),
     sendState: (data) => {
       if (!room || !validState(data)) return false;
-      const timestamp = now();
+      // A broken clock provider must not throw through the iPhone render loop.
+      let timestamp;
+      try { timestamp = now(); } catch { return false; }
       if (!Number.isFinite(timestamp)) return false;
       // Wall clocks can jump backwards on mobile; recover instead of freezing updates.
       if (timestamp >= lastStateSentAt && timestamp - lastStateSentAt < STATE_INTERVAL_MS) return false;
