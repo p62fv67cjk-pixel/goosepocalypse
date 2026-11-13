@@ -170,3 +170,26 @@ test('does not surface gameplay packets before a room is joined', () => {
   assert.equal(events.filter(e => e.type === 'packet').length, 3);
   ws.close();
 });
+
+test('accepts gameplay only from the currently connected teammate', () => {
+  const events = [];
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, onEvent: e => events.push(e) });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  const gameplay = () => events.filter(e => e.type === 'packet' && ['state', 'action', 'revive'].includes(e.packet.type));
+  ws.packet({ type: 'state', playerId: idB, data: { x: 1, z: 2 } });
+  assert.equal(gameplay().length, 0);
+  ws.packet({ type: 'peer_joined', playerId: idB });
+  ws.packet({ type: 'state', playerId: idA, data: { x: 1, z: 2 } });
+  ws.packet({ type: 'action', playerId: 'd'.repeat(24), data: { kind: 'fire' } });
+  assert.equal(gameplay().length, 0);
+  ws.packet({ type: 'state', playerId: idB, data: { x: 1, z: 2 } });
+  ws.packet({ type: 'action', playerId: idB, data: { kind: 'fire' } });
+  assert.equal(gameplay().length, 2);
+  ws.packet({ type: 'peer_left', playerId: idB });
+  ws.packet({ type: 'revive', playerId: idB, data: { targetId: idA } });
+  assert.equal(gameplay().length, 2);
+  ws.close();
+});
