@@ -45,6 +45,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       } else if (packet.type === 'peer_left') {
         if (!room || !peerId || peerId !== packet.playerId) return;
         peerId = null;
+      } else if (!room && packet.type !== 'error') {
+        // Do not expose gameplay packets before room membership is established.
+        return;
       }
       emit('packet', { packet });
     });
