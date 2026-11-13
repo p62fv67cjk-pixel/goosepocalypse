@@ -18,6 +18,13 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     (d.yaw === undefined || (Number.isFinite(d.yaw) && Math.abs(d.yaw) <= 10000)) &&
     (d.health === undefined || (Number.isFinite(d.health) && d.health >= 0 && d.health <= 100)) &&
     (d.downed === undefined || typeof d.downed === 'boolean');
+  // Mirror relay action constraints locally so invalid input never consumes bandwidth.
+  const validAction = (data) => !!data && typeof data === 'object' && !Array.isArray(data) &&
+    Object.keys(data).length <= 8 && Object.entries(data).every(([key, value]) =>
+      key.length <= 32 && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(key) &&
+      ((typeof value === 'string' && value.length <= 64) ||
+       typeof value === 'boolean' ||
+       (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 10000)));
   const send = (packet) => {
     if (!socket || socket.readyState !== WebSocketImpl.OPEN) return false;
     // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
@@ -99,7 +106,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     createRoom: () => send({ type: 'create' }),
     joinRoom: (code) => /^[a-f0-9]{24}$/.test(code) && send({ type: 'join', room: code }),
     sendState: (data) => !!room && validState(data) && send({ type: 'state', data }),
-    sendAction: (data) => !!room && send({ type: 'action', data }),
+    sendAction: (data) => !!room && validAction(data) && send({ type: 'action', data }),
     revive: (targetId) => !!room && validId(targetId) && targetId === peerId && send({ type: 'revive', data: { targetId } }),
     get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId }; }
   };
