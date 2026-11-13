@@ -91,7 +91,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     });
     ws.addEventListener('close', () => {
       if (current !== generation) return;
-      socket = null; room = null; playerId = null; peerId = null; lastStateSentAt = -Infinity; lastStateSentAt = -Infinity;
+      socket = null; room = null; playerId = null; peerId = null; lastStateSentAt = -Infinity;
       emit('disconnected');
     });
     ws.addEventListener('error', () => {
@@ -101,7 +101,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   function disconnect() {
     ++generation;
     const old = socket;
-    socket = null; room = null; playerId = null; peerId = null;
+    socket = null; room = null; playerId = null; peerId = null; lastStateSentAt = -Infinity;
     if (old) {
       try { old.close(); } finally { emit('disconnected'); }
     }
