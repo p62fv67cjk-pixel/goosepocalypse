@@ -28,7 +28,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       try { packet = JSON.parse(data); } catch { return; }
       if (!packet || typeof packet !== 'object' || Array.isArray(packet) || typeof packet.type !== 'string') return;
       if (packet.type === 'joined') {
-        if (!validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && !validId(packet.peerId))) return;
+        if (room || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
         room = packet.room;
         playerId = packet.playerId;
         peerId = packet.peerId || null;
