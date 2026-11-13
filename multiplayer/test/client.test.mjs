@@ -393,3 +393,25 @@ test('recovers state pacing after a backwards mobile clock adjustment', () => {
   assert.equal(ws.sent.length, 3);
   ws.close();
 });
+
+test('a throwing mobile clock cannot crash the game loop or consume pacing', () => {
+  let time = 1000;
+  let fail = true;
+  const client = createCoopClient({
+    url: 'wss://example.org', WebSocketImpl: FakeSocket,
+    now: () => { if (fail) throw new Error('clock temporarily unavailable'); return time; }
+  });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  ws.packet({ type: 'joined', room, playerId: idA });
+  assert.doesNotThrow(() => assert.equal(client.sendState({ x: 0, z: 0 }), false));
+  assert.equal(ws.sent.length, 0);
+  fail = false;
+  assert.equal(client.sendState({ x: 1, z: 0 }), true, 'first valid clock reading sends immediately');
+  assert.equal(client.sendState({ x: 2, z: 0 }), false, 'normal throttle resumes');
+  time += 100;
+  assert.equal(client.sendState({ x: 3, z: 0 }), true);
+  assert.equal(ws.sent.length, 2);
+  ws.close();
+});
