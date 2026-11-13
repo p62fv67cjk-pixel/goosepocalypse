@@ -39,6 +39,16 @@ wss.on('connection', (ws, request) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return send(ws, { type: 'error', code: 'invalid_json' }); }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
+    // Reject unknown envelope fields before routing. They must never become
+    // a covert channel to future client handlers or room commands.
+    const keys = Object.keys(msg);
+    const expected = msg.type === 'create' ? ['type'] :
+      msg.type === 'join' ? ['type', 'room'] :
+      ALLOWED.has(msg.type) ? ['type', 'data'] : null;
+    if (expected && (keys.length !== expected.length ||
+        keys.some(key => !expected.includes(key)))) {
+      return send(ws, { type: 'error', code: 'invalid_envelope' });
+    }
     if (msg.type === 'create' && !peer.room) {
       if (rooms.size >= MAX_ROOMS) return send(ws, { type: 'error', code: 'server_full' });
       let code;
