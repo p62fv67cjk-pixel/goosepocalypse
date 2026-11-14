@@ -7,6 +7,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let room = null;
   let playerId = null;
   let peerId = null;
+  let roomRequestPending = false;
   let lastStateSentAt = -Infinity;
   // A 60fps render loop must not trip the relay's 30-message/second disconnect limit.
   const STATE_INTERVAL_MS = 100;
@@ -60,9 +61,14 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (packet.type === 'joined') {
         if (room || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
         lastStateSentAt = -Infinity;
+        roomRequestPending = false;
         room = packet.room;
         playerId = packet.playerId;
         peerId = packet.peerId || null;
+      } else if (packet.type === 'error') {
+        // The relay rejects invalid/full room requests without closing the socket.
+        // Permit a corrected request instead of leaving the lobby stuck.
+        roomRequestPending = false;
       } else if (packet.type === 'peer_joined') {
         if (!room || !validId(packet.playerId) || packet.playerId === playerId || (peerId && peerId !== packet.playerId)) return;
         peerId = packet.playerId;
@@ -96,7 +102,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     });
     ws.addEventListener('close', () => {
       if (current !== generation) return;
-      socket = null; room = null; playerId = null; peerId = null; lastStateSentAt = -Infinity;
+      socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; lastStateSentAt = -Infinity;
       emit('disconnected');
     });
     ws.addEventListener('error', () => {
@@ -118,8 +124,16 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     connect, disconnect,
     // Room membership is single-use per connection. A second create/join request
     // after joining would be rejected by the relay and confuse the game UI.
-    createRoom: () => !room && send({ type: 'create' }),
-    joinRoom: (code) => !room && typeof code === 'string' && /^[a-f0-9]{24}$/.test(code) && send({ type: 'join', room: code }),
+    createRoom: () => {
+      if (room || roomRequestPending || !send({ type: 'create' })) return false;
+      roomRequestPending = true;
+      return true;
+    },
+    joinRoom: (code) => {
+      if (room || roomRequestPending || typeof code !== 'string' || !/^[a-f0-9]{24}$/.test(code) || !send({ type: 'join', room: code })) return false;
+      roomRequestPending = true;
+      return true;
+    },
     sendState: (data) => {
       if (!room || !validState(data)) return false;
       // A broken clock provider must not throw through the iPhone render loop.
