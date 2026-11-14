@@ -1,0 +1,17 @@
+# Two-player networking foundation (not yet playable co-op)
+
+This is a **real WebSocket server**, not a simulated second player. It supplies two-person room creation, joining, bounded message relay, disconnect notification and keepalive. It does **not** yet connect to the Three.js client, synchronize enemies, authenticate players, or implement authoritative combat, revive or anti-cheat. The relay does check that a revive target is connected, reports being downed, and is within 3.5 horizontal world units of the sender's latest reported position. Both positions remain client-reported and spoofable. Do not advertise the game as multiplayer yet.
+
+## Local run
+
+From `multiplayer/`: `npm install && npm test && npm start`. For a browser client, configure `ALLOWED_ORIGINS=https://your-game.example` (comma-separated exact origins for multiple frontends); without this setting browser-origin connections are rejected with HTTP 403 before the WebSocket handshake completes. This is a browser-origin policy, not authentication; clients that omit Origin can still connect. Non-browser clients without an Origin header are not authenticated by this check and must not be considered trusted. The server listens on `PORT` (default 8787). Test coverage uses actual local WebSocket clients.
+
+## Protocol
+
+Open a WebSocket to the server. Host sends `{"type":"create"}`; server returns `{"type":"joined","room":"<24 hex digits>","playerId":"...","host":true}`. Guest sends `{"type":"join","room":"<24 hex digits>"}`; server returns joined with host false. Each side can then send `{"type":"state","data":{"x":0,"z":0}}` or `action`/`revive` messages with an object `data`. Messages are forwarded to the other connected player with the sender's playerId. Room codes use 96 bits of cryptographic randomness to make guessing an invitation impractical; possession of a code is still not authentication. The relay rejects state messages without finite numeric x/z coordinates or with absolute coordinates greater than 10,000, but does not verify legitimate movement, speed, collisions or player authority. Revive requests require recent reported state from both players, a downed target and a non-downed sender within 3.5 horizontal world units; the server does not verify actual location, health, or recovery and does not apply revival. On accepted revival the rescuer receives `{ "type": "revive_accepted", "targetId": "..." }` while the target receives the existing `revive` relay. This acknowledgement confirms only that the relay accepted the request, **not** that health was restored. Treat all relayed actions and revive requests as untrusted.
+
+## Deployment and remaining blockers
+
+Deploy this Node service on a public HTTPS-capable host with WebSocket upgrade support and configure a valid TLS certificate. Use `wss://` from Safari, never `ws://` on an HTTPS game page. A share link will need to carry the room code, and the client must implement room UI, serialization, remote character rendering, reconciliation, revive state and disconnect recovery. A production deployment should add authentication or signed room invites, explicit origin allowlists, authoritative simulation, state validation, abuse protection and metrics. There is no deployed server or proof of cross-device play yet. This standalone addition does not touch recorded audio, soundtrack, joystick, mobile layout or current single-player gameplay.
+
+Unreal Engine Editor integration is also **not** established by this work; a Blender GLB export alone is not an Unreal connection.
