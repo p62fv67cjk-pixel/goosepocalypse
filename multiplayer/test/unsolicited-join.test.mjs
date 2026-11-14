@@ -42,3 +42,17 @@ test('rejected lobby request allows another request but not unsolicited joined',
   assert.equal(client.createRoom(), true);
   client.disconnect();
 });
+
+test('unrelated relay errors cannot unlock a pending lobby request', () => {
+  let ws;
+  class Socket extends FakeSocket { constructor(url) { super(url); ws = this; } }
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: Socket });
+  client.connect(); ws.open();
+  assert.equal(client.createRoom(), true);
+  ws.fire('message', { data: JSON.stringify({ type: 'error', code: 'invalid_state' }) });
+  assert.equal(client.createRoom(), false);
+  assert.equal(client.joinRoom('a'.repeat(24)), false);
+  ws.fire('message', { data: JSON.stringify({ type: 'error', code: 'server_full' }) });
+  assert.equal(client.createRoom(), true);
+  client.disconnect();
+});
