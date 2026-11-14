@@ -54,7 +54,6 @@ test('ignores stale sockets after reconnect and clears room state on disconnect'
   client.connect();
   const second = FakeSocket.instances.at(-1);
   second.open();
-  client.createRoom(); first.sent.pop();
   first.packet({ type: 'joined', room, playerId: idA });
   first.fire('close');
   assert.equal(client.status.room, null);
@@ -91,7 +90,6 @@ test('does not send gameplay before joining and rejects forged teammate identiti
   client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: 'invalid' });
   assert.equal(client.status.room, null);
-  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   ws.packet({ type: 'peer_joined', playerId: 'invalid' });
   ws.packet({ type: 'peer_joined', playerId: idA });
@@ -112,11 +110,9 @@ test('joined packets cannot replace established identity or assign self as peer'
   client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: idA });
   assert.equal(client.status.room, null);
-  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
   assert.equal(client.status.playerId, idA);
   assert.equal(client.status.peerId, idB);
-  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room: 'd'.repeat(24), playerId: idB });
   assert.equal(client.status.room, room);
   assert.equal(client.status.playerId, idA);
