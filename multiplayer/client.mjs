@@ -10,7 +10,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let roomRequestPending = false;
   let requestedRoom = null;
   let pendingKind = null;
-  let pendingReviveTarget = null; pendingReviveAt = null;
+  let pendingReviveTarget = null;
   let pendingReviveAt = null;
   let lastStateSentAt = -Infinity;
   // A 60fps render loop must not trip the relay's 30-message/second disconnect limit.
