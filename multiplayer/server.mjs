@@ -161,14 +161,19 @@ wss.on('connection', (ws, request) => {
           (Number.isFinite(from.y) && Math.abs(from.y - to.y) > 2.5)) {
         return send(ws, { type: 'error', code: 'revive_not_allowed' });
       }
+      // A rescue must not be acknowledged when delivery to the downed
+      // teammate fails. In that case keep the snapshot/cooldown unchanged,
+      // allowing a replacement peer to join after socket close cleanup.
+      if (!send(target.ws, { type: 'revive', playerId: peer.playerId, data: msg.data })) {
+        return send(ws, { type: 'error', code: 'revive_delivery_failed' });
+      }
       peer.lastReviveAt = now;
       // Consume the downed snapshot after one accepted revive. A held button
       // must not replay a successful rescue once the cooldown expires.
       // The game client still owns health restoration until authoritative sync exists.
       target.lastState = { ...to, downed: false };
-      // Confirm accepted routing to the rescuer as well as the target. This is
-      // not authoritative health restoration; clients must still reconcile.
-      send(ws, { type: 'revive_accepted', targetId });
+      // This confirms relay delivery only, not authoritative health restoration.
+      return send(ws, { type: 'revive_accepted', targetId });
     }
     for (const other of peer.room.players.values()) {
       if (other !== peer) send(other.ws, { type: msg.type, playerId: peer.playerId, data: msg.data });
