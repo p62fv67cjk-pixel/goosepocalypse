@@ -385,6 +385,7 @@ test('ignores forged revive acknowledgements and host changes', () => {
   ws.packet({ type: 'revive_accepted', targetId: 'd'.repeat(24) });
   ws.packet({ type: 'host_changed', playerId: idB });
   assert.equal(packets().length, before, 'forged control messages must not reach UI');
+  assert.equal(client.revive(idB), true);
   ws.packet({ type: 'revive_accepted', targetId: idB });
   ws.packet({ type: 'host_changed', playerId: idA });
   assert.deepEqual(packets().slice(-2).map(packet => packet.type),
@@ -501,4 +502,28 @@ test('only one room request can be in flight and a rejected join can be retried'
   next.open();
   assert.equal(client.createRoom(), true, 'disconnect clears pending request');
   next.close();
+});
+
+
+test('revive acknowledgement requires an outstanding request and cannot be replayed', () => {
+  const events = [];
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, onEvent: e => events.push(e) });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  client.createRoom();
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
+  const acknowledgements = () => events.filter(e => e.type === 'packet' && e.packet.type === 'revive_accepted').length;
+  ws.packet({ type: 'revive_accepted', targetId: idB });
+  assert.equal(acknowledgements(), 0);
+  assert.equal(client.revive(idB), true);
+  ws.packet({ type: 'revive_accepted', targetId: idB });
+  assert.equal(acknowledgements(), 1);
+  ws.packet({ type: 'revive_accepted', targetId: idB });
+  assert.equal(acknowledgements(), 1, 'duplicate confirmation cannot trigger repeated revive feedback');
+  assert.equal(client.revive(idB), true);
+  ws.packet({ type: 'peer_left', playerId: idB });
+  ws.packet({ type: 'revive_accepted', targetId: idB });
+  assert.equal(acknowledgements(), 1, 'departed teammate cannot be acknowledged');
+  client.disconnect();
 });
