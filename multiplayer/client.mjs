@@ -10,7 +10,8 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let roomRequestPending = false;
   let requestedRoom = null;
   let pendingKind = null;
-  let pendingReviveTarget = null;
+  let pendingReviveTarget = null; pendingReviveAt = null;
+  let pendingReviveAt = null;
   let lastStateSentAt = -Infinity;
   // A 60fps render loop must not trip the relay's 30-message/second disconnect limit.
   const STATE_INTERVAL_MS = 100;
@@ -70,7 +71,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         room = packet.room;
         playerId = packet.playerId;
         peerId = packet.peerId || null;
-        pendingReviveTarget = null;
+        pendingReviveTarget = null; pendingReviveAt = null;
       } else if (packet.type === 'error') {
         // The relay rejects invalid/full room requests without closing the socket.
         // Permit a corrected request instead of leaving the lobby stuck.
@@ -79,14 +80,14 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         if (roomRequestPending && ((pendingKind === 'create' && packet.code === 'server_full') || (pendingKind === 'join' && ['invalid_room', 'room_not_found', 'room_full'].includes(packet.code)))) { roomRequestPending = false; requestedRoom = null; pendingKind = null; }
         // A rejected revive cannot later be confirmed by a delayed or forged acknowledgement.
         // Clear only revive-specific errors; unrelated gameplay errors must not cancel it.
-        if (['invalid_revive_target', 'revive_cooldown', 'revive_not_allowed', 'revive_delivery_failed'].includes(packet.code)) pendingReviveTarget = null;
+        if (['invalid_revive_target', 'revive_cooldown', 'revive_not_allowed', 'revive_delivery_failed'].includes(packet.code)) pendingReviveTarget = null; pendingReviveAt = null;
       } else if (packet.type === 'peer_joined') {
         if (!room || !validId(packet.playerId) || packet.playerId === playerId || peerId) return;
         peerId = packet.playerId;
       } else if (packet.type === 'peer_left') {
         if (!room || !peerId || peerId !== packet.playerId) return;
         peerId = null;
-        pendingReviveTarget = null;
+        pendingReviveTarget = null; pendingReviveAt = null;
       } else if (!room && packet.type !== 'error') {
         // Do not expose gameplay packets before room membership is established.
         return;
@@ -106,7 +107,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       // an unrelated target, or a host transition for another player.
       if (packet.type === 'revive_accepted' &&
           (!peerId || packet.targetId !== peerId || pendingReviveTarget !== peerId)) return;
-      if (packet.type === 'revive_accepted') pendingReviveTarget = null;
+      if (packet.type === 'revive_accepted') pendingReviveTarget = null; pendingReviveAt = null;
       if (packet.type === 'host_changed' && packet.playerId !== playerId) return;
       if (packet.type === 'revive' &&
           (!packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
@@ -115,7 +116,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     });
     ws.addEventListener('close', () => {
       if (current !== generation) return;
-      socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; lastStateSentAt = -Infinity;
+      socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; pendingReviveAt = null; lastStateSentAt = -Infinity;
       emit('disconnected');
     });
     ws.addEventListener('error', () => {
@@ -125,7 +126,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   function disconnect() {
     ++generation;
     const old = socket;
-    socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; lastStateSentAt = -Infinity;
+    socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; pendingReviveAt = null; lastStateSentAt = -Infinity;
     if (old) {
       // A browser/WebSocket shim can throw during close. Local teardown is
       // already complete, so do not let that exception break the game UI.
@@ -165,8 +166,16 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     },
     sendAction: (data) => !!room && validAction(data) && send({ type: 'action', data }),
     revive: (targetId) => {
-      if (!room || pendingReviveTarget || !validId(targetId) || targetId !== peerId || !send({ type: 'revive', data: { targetId } })) return false;
+      // Lost relay responses must not permanently disable the revive button.
+      // Expire the outstanding request after five seconds; the relay still
+      // enforces proximity, downed state and its own cooldown on every retry.
+      let timestamp;
+      try { timestamp = now(); } catch { return false; }
+      if (!Number.isFinite(timestamp)) return false;
+      if (pendingReviveTarget && pendingReviveAt !== null && timestamp >= pendingReviveAt && timestamp - pendingReviveAt < 5000) return false;
+      if (!room || !validId(targetId) || targetId !== peerId || !send({ type: 'revive', data: { targetId } })) return false;
       pendingReviveTarget = targetId;
+      pendingReviveAt = timestamp;
       return true;
     },
     get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId }; }
