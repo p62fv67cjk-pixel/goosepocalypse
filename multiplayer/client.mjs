@@ -81,7 +81,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         // Clear only revive-specific errors; unrelated gameplay errors must not cancel it.
         if (['invalid_revive_target', 'revive_cooldown', 'revive_not_allowed', 'revive_delivery_failed'].includes(packet.code)) pendingReviveTarget = null;
       } else if (packet.type === 'peer_joined') {
-        if (!room || !validId(packet.playerId) || packet.playerId === playerId || (peerId && peerId !== packet.playerId)) return;
+        if (!room || !validId(packet.playerId) || packet.playerId === playerId || peerId) return;
         peerId = packet.playerId;
       } else if (packet.type === 'peer_left') {
         if (!room || !peerId || peerId !== packet.playerId) return;
