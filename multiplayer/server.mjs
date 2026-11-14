@@ -34,7 +34,13 @@ const send = (ws, payload) => {
   // A socket can close between the readyState check and send. Never let a
   // single failed teammate transport crash the shared room relay process.
   try {
-    ws.send(JSON.stringify(payload));
+    ws.send(JSON.stringify(payload), (error) => {
+      // ws may report an asynchronous write failure after send() returns.
+      // Evict that transport so it cannot occupy a room slot indefinitely.
+      if (error) {
+        try { ws.terminate(); } catch { /* already unusable */ }
+      }
+    });
     return true;
   } catch {
     // A failed send is not a healthy room member. Force close cleanup so the
