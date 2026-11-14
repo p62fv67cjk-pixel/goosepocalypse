@@ -37,6 +37,10 @@ const send = (ws, payload) => {
     ws.send(JSON.stringify(payload));
     return true;
   } catch {
+    // A failed send is not a healthy room member. Force close cleanup so the
+    // remaining teammate can recover and a replacement can join the room.
+    // Termination itself can throw in transport shims; isolate that too.
+    try { ws.terminate(); } catch { /* already unusable */ }
     return false;
   }
 };
