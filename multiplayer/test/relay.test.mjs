@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { connect as connectTcp } from 'node:net';
+import { randomBytes } from 'node:crypto';
 import { WebSocket } from 'ws';
 
 const port = 19000 + Math.floor(Math.random() * 20000);
@@ -537,4 +539,42 @@ test('revive reach measures true three-dimensional distance near stairs', async 
   host.send(JSON.stringify({ type: 'revive', data: { targetId: info.playerId } }));
   assert.equal((await accepted).type, 'revive');
   assert.equal((await acknowledgement).type, 'revive_accepted');
+});
+
+
+test('malformed WebSocket frame cannot terminate the shared relay', async () => {
+  const tcp = await new Promise((resolve, reject) => {
+    const socket = connectTcp(port, '127.0.0.1');
+    socket.once('connect', () => resolve(socket));
+    socket.once('error', reject);
+  });
+  try {
+    const key = randomBytes(16).toString('base64');
+    const upgraded = new Promise((resolve, reject) => {
+      let response = '';
+      const timeout = setTimeout(() => reject(new Error('Upgrade timed out')), 1500);
+      tcp.on('data', chunk => {
+        response += chunk.toString('latin1');
+        if (response.includes('\\r\\n\\r\\n')) {
+          clearTimeout(timeout);
+          resolve(response);
+        }
+      });
+      tcp.once('error', reject);
+    });
+    tcp.write('GET / HTTP/1.1\\r\\nHost: 127.0.0.1:' + port +
+      '\\r\\nUpgrade: websocket\\r\\nConnection: Upgrade\\r\\n' +
+      'Sec-WebSocket-Key: ' + key + '\\r\\nSec-WebSocket-Version: 13\\r\\n\\r\\n');
+    assert.match(await upgraded, /^HTTP\/1\.1 101 /);
+    // RFC 6455 requires client frames to be masked. This deliberately isn't.
+    tcp.write(Buffer.from([0x81, 0x02, 0x7b, 0x7d]));
+    await sleep(100);
+    const survivor = await connect();
+    const response = receive(survivor);
+    survivor.send(JSON.stringify({ type: 'create' }));
+    assert.equal((await response).type, 'joined');
+    assert.equal(child.exitCode, null);
+  } finally {
+    tcp.destroy();
+  }
 });
