@@ -52,7 +52,7 @@ wss.on('connection', (ws, request) => {
   peers.set(ws, peer);
   // An errored transport must not emit an unhandled EventEmitter error and
   // terminate the shared relay. Termination triggers the normal close cleanup.
-  ws.on('error', () => { ws.terminate(); });
+  ws.on('error', () => { try { ws.terminate(); } catch { /* already unusable */ } });
   ws.on('pong', () => { peer.alive = true; });
   ws.on('message', (raw) => {
     const now = Date.now();
@@ -191,11 +191,11 @@ wss.on('connection', (ws, request) => {
 const heartbeat = setInterval(() => {
   for (const ws of wss.clients) {
     const peer = peers.get(ws);
-    if (!peer || !peer.alive) { ws.terminate(); continue; }
+    if (!peer || !peer.alive) { try { ws.terminate(); } catch { /* already unusable */ } continue; }
     peer.alive = false;
     // Transport errors can occur between heartbeat inspection and ping.
     // Isolate the failed socket rather than crashing the shared relay.
-    try { ws.ping(); } catch { ws.terminate(); }
+    try { ws.ping(); } catch { try { ws.terminate(); } catch { /* already unusable */ } }
   }
 }, 30000);
 wss.on('close', () => clearInterval(heartbeat));
