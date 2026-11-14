@@ -77,6 +77,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         // Only a lobby rejection can release a pending create/join request.
         // Gameplay errors or malformed packets must not unlock duplicate requests.
         if (roomRequestPending && ((pendingKind === 'create' && packet.code === 'server_full') || (pendingKind === 'join' && ['invalid_room', 'room_not_found', 'room_full'].includes(packet.code)))) { roomRequestPending = false; requestedRoom = null; pendingKind = null; }
+        // A rejected revive cannot later be confirmed by a delayed or forged acknowledgement.
+        // Clear only revive-specific errors; unrelated gameplay errors must not cancel it.
+        if (['invalid_revive_target', 'revive_cooldown', 'revive_not_allowed', 'revive_delivery_failed'].includes(packet.code)) pendingReviveTarget = null;
       } else if (packet.type === 'peer_joined') {
         if (!room || !validId(packet.playerId) || packet.playerId === playerId || (peerId && peerId !== packet.playerId)) return;
         peerId = packet.playerId;
@@ -162,7 +165,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     },
     sendAction: (data) => !!room && validAction(data) && send({ type: 'action', data }),
     revive: (targetId) => {
-      if (!room || !validId(targetId) || targetId !== peerId || !send({ type: 'revive', data: { targetId } })) return false;
+      if (!room || pendingReviveTarget || !validId(targetId) || targetId !== peerId || !send({ type: 'revive', data: { targetId } })) return false;
       pendingReviveTarget = targetId;
       return true;
     },
