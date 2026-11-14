@@ -555,16 +555,16 @@ test('malformed WebSocket frame cannot terminate the shared relay', async () => 
       const timeout = setTimeout(() => reject(new Error('Upgrade timed out')), 1500);
       tcp.on('data', chunk => {
         response += chunk.toString('latin1');
-        if (response.includes('\\r\\n\\r\\n')) {
+        if (response.includes('\r\n\r\n')) {
           clearTimeout(timeout);
           resolve(response);
         }
       });
       tcp.once('error', reject);
     });
-    tcp.write('GET / HTTP/1.1\\r\\nHost: 127.0.0.1:' + port +
-      '\\r\\nUpgrade: websocket\\r\\nConnection: Upgrade\\r\\n' +
-      'Sec-WebSocket-Key: ' + key + '\\r\\nSec-WebSocket-Version: 13\\r\\n\\r\\n');
+    tcp.write('GET / HTTP/1.1\r\nHost: 127.0.0.1:' + port +
+      '\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+      'Sec-WebSocket-Key: ' + key + '\r\nSec-WebSocket-Version: 13\r\n\r\n');
     assert.match(await upgraded, /^HTTP\/1\.1 101 /);
     // RFC 6455 requires client frames to be masked. This deliberately isn't.
     tcp.write(Buffer.from([0x81, 0x02, 0x7b, 0x7d]));
