@@ -45,6 +45,7 @@ test('ignores stale sockets after reconnect and clears room state on disconnect'
   client.connect();
   const first = FakeSocket.instances.at(-1);
   first.open();
+  client.createRoom(); first.sent.pop();
   first.packet({ type: 'joined', room, playerId: idA });
   client.disconnect();
   assert.equal(events.filter(e => e.type === 'disconnected').length, 1, 'explicit disconnect must clear teammate UI immediately');
@@ -53,9 +54,11 @@ test('ignores stale sockets after reconnect and clears room state on disconnect'
   client.connect();
   const second = FakeSocket.instances.at(-1);
   second.open();
+  client.createRoom(); first.sent.pop();
   first.packet({ type: 'joined', room, playerId: idA });
   first.fire('close');
   assert.equal(client.status.room, null);
+  client.createRoom(); second.sent.pop();
   second.packet({ type: 'joined', room, playerId: idB });
   assert.equal(client.status.playerId, idB);
   second.close();
@@ -85,8 +88,10 @@ test('does not send gameplay before joining and rejects forged teammate identiti
   assert.equal(client.sendAction({ kind: 'fire' }), false);
   ws.packet({ type: 'peer_joined', playerId: idB });
   assert.equal(client.status.peerId, null);
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: 'invalid' });
   assert.equal(client.status.room, null);
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   ws.packet({ type: 'peer_joined', playerId: 'invalid' });
   ws.packet({ type: 'peer_joined', playerId: idA });
@@ -104,11 +109,14 @@ test('joined packets cannot replace established identity or assign self as peer'
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: idA });
   assert.equal(client.status.room, null);
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
   assert.equal(client.status.playerId, idA);
   assert.equal(client.status.peerId, idB);
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room: 'd'.repeat(24), playerId: idB });
   assert.equal(client.status.room, room);
   assert.equal(client.status.playerId, idA);
@@ -122,6 +130,7 @@ test('conflicting peer announcements and stale departures cannot replace active 
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
   const thirdId = 'd'.repeat(24);
   const before = events.length;
@@ -143,6 +152,7 @@ test('outbound packets fail safely on cycles, oversized data and socket send err
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   const cyclic = {};
   cyclic.self = cyclic;
@@ -166,6 +176,7 @@ test('does not surface gameplay packets before a room is joined', () => {
   assert.equal(events.filter(e => e.type === 'packet').length, 0);
   ws.packet({ type: 'error', message: 'room unavailable' });
   assert.equal(events.filter(e => e.type === 'packet').length, 1);
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   ws.packet({ type: 'peer_joined', playerId: idB });
   ws.packet({ type: 'state', playerId: idB, data: { x: 2, z: 0 } });
@@ -179,6 +190,7 @@ test('accepts gameplay only from the currently connected teammate', () => {
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   const gameplay = () => events.filter(e => e.type === 'packet' && ['state', 'action', 'revive'].includes(e.packet.type));
   ws.packet({ type: 'state', playerId: idB, data: { x: 1, z: 2 } });
@@ -201,6 +213,7 @@ test('outbound size limit counts UTF-8 bytes rather than JavaScript characters',
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   // A surrogate-pair emoji is two UTF-16 code units but four UTF-8 bytes.
   // This packet is below 2048 JS characters yet exceeds the relay's byte limit.
@@ -220,6 +233,7 @@ test('ignores undocumented relay events and oversized UTF-8 inbound messages', (
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   const before = events.length;
   ws.packet({ type: 'future_untrusted_command', data: { kind: 'revive' } });
@@ -239,6 +253,7 @@ test('rejects malformed teammate snapshots and revives not addressed to this pla
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
   const gameplay = () => events.filter(e => e.type === 'packet' && ['state', 'revive'].includes(e.packet.type));
   ws.packet({ type: 'state', playerId: idB, data: { x: 1 } });
@@ -259,6 +274,7 @@ test('outgoing state rejects malformed snapshots without sending to relay', () =
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   const invalid = [
     null, [], { x: 1 }, { x: NaN, z: 2 }, { x: Infinity, z: 2 },
@@ -279,6 +295,7 @@ test('outbound actions follow relay primitive field limits', () => {
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   const invalid = [null, [], { nested: {} }, { note: 'x'.repeat(65) },
     { 'bad-key': 1 }, { a: Infinity }, { a: 10001 },
@@ -296,6 +313,7 @@ test('rejects malformed inbound teammate actions before gameplay dispatch', () =
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: idB });
   const actions = () => events.filter(e => e.type === 'packet' && e.packet.type === 'action');
   for (const data of [null, [], { nested: {} }, { note: 'x'.repeat(65) },
@@ -315,6 +333,7 @@ test('throttles 60fps state snapshots without disconnecting and resets on rejoin
   client.connect();
   const first = FakeSocket.instances.at(-1);
   first.open();
+  client.createRoom(); first.sent.pop();
   first.packet({ type: 'joined', room, playerId: idA });
   let accepted = 0;
   for (let frame = 0; frame < 60; frame++) {
@@ -327,6 +346,7 @@ test('throttles 60fps state snapshots without disconnecting and resets on rejoin
   client.connect();
   const second = FakeSocket.instances.at(-1);
   second.open();
+  client.createRoom(); second.sent.pop();
   second.packet({ type: 'joined', room, playerId: idB });
   assert.equal(client.sendState({ x: 0, z: 0 }), true, 'new room gets an immediate snapshot');
   assert.equal(client.sendState({ x: 1, z: 0 }), false, 'consecutive snapshots are throttled');
@@ -341,6 +361,7 @@ test('failed state sends do not consume the next throttle slot', () => {
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   const original = ws.send;
   ws.send = () => { throw new Error('temporary send failure'); };
@@ -359,6 +380,7 @@ test('ignores forged revive acknowledgements and host changes', () => {
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, host: true });
   ws.packet({ type: 'peer_joined', playerId: idB });
   const packets = () => events.filter(event => event.type === 'packet').map(event => event.packet);
@@ -383,6 +405,7 @@ test('recovers state pacing after a backwards mobile clock adjustment', () => {
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   assert.equal(client.sendState({ x: 0, z: 0 }), true);
   time = 100;
@@ -404,6 +427,7 @@ test('a throwing mobile clock cannot crash the game loop or consume pacing', () 
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
+  client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   assert.doesNotThrow(() => assert.equal(client.sendState({ x: 0, z: 0 }), false));
   assert.equal(ws.sent.length, 0);
@@ -425,6 +449,7 @@ test('disconnect completes and allows reconnect when socket.close throws', () =>
   client.connect();
   const first = FakeSocket.instances.at(-1);
   first.open();
+  client.createRoom(); first.sent.pop();
   first.packet({ type: 'joined', room, playerId: idA });
   first.close = () => { throw new Error('iOS socket teardown failed'); };
   assert.doesNotThrow(() => client.disconnect());
@@ -433,6 +458,7 @@ test('disconnect completes and allows reconnect when socket.close throws', () =>
   client.connect();
   const second = FakeSocket.instances.at(-1);
   second.open();
+  client.createRoom(); second.sent.pop();
   second.packet({ type: 'joined', room, playerId: idB });
   assert.equal(client.status.playerId, idB);
   first.fire('close');
