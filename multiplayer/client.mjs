@@ -112,7 +112,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   function disconnect() {
     ++generation;
     const old = socket;
-    socket = null; room = null; playerId = null; peerId = null; lastStateSentAt = -Infinity;
+    socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; lastStateSentAt = -Infinity;
     if (old) {
       // A browser/WebSocket shim can throw during close. Local teardown is
       // already complete, so do not let that exception break the game UI.
