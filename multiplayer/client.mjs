@@ -59,7 +59,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (!['joined', 'peer_joined', 'peer_left', 'state', 'action', 'revive',
         'revive_accepted', 'host_changed', 'error'].includes(packet.type)) return;
       if (packet.type === 'joined') {
-        if (room || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
+        if (room || !roomRequestPending || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
         lastStateSentAt = -Infinity;
         roomRequestPending = false;
         room = packet.room;
