@@ -116,8 +116,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   }
   return {
     connect, disconnect,
-    createRoom: () => send({ type: 'create' }),
-    joinRoom: (code) => /^[a-f0-9]{24}$/.test(code) && send({ type: 'join', room: code }),
+    // Room membership is single-use per connection. A second create/join request
+    // after joining would be rejected by the relay and confuse the game UI.
+    createRoom: () => !room && send({ type: 'create' }),
+    joinRoom: (code) => !room && typeof code === 'string' && /^[a-f0-9]{24}$/.test(code) && send({ type: 'join', room: code }),
     sendState: (data) => {
       if (!room || !validState(data)) return false;
       // A broken clock provider must not throw through the iPhone render loop.
