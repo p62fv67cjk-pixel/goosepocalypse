@@ -30,7 +30,15 @@ const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').m
 const ALLOWED = new Set(['state', 'action', 'revive']);
 const id = () => randomBytes(12).toString('hex');
 const send = (ws, payload) => {
-  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+  if (ws.readyState !== WebSocket.OPEN) return false;
+  // A socket can close between the readyState check and send. Never let a
+  // single failed teammate transport crash the shared room relay process.
+  try {
+    ws.send(JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
+  }
 };
 const closeRoomIfEmpty = (room) => {
   if (room.players.size === 0) rooms.delete(room.code);
