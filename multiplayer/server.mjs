@@ -63,7 +63,13 @@ wss.on('connection', (ws, request) => {
   ws.on('message', (raw) => {
     const now = Date.now();
     if (now - peer.windowStart >= 1000) { peer.windowStart = now; peer.messages = 0; }
-    if (++peer.messages > 30) return ws.close(1008, 'Rate limit');
+    if (++peer.messages > 30) {
+      // Closing an already-failed transport can itself throw. Rate limiting
+      // must never terminate the shared relay's message handler.
+      try { ws.close(1008, 'Rate limit'); }
+      catch { try { ws.terminate(); } catch { /* already unusable */ } }
+      return;
+    }
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return send(ws, { type: 'error', code: 'invalid_json' }); }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
