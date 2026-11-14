@@ -68,7 +68,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       } else if (packet.type === 'error') {
         // The relay rejects invalid/full room requests without closing the socket.
         // Permit a corrected request instead of leaving the lobby stuck.
-        roomRequestPending = false;
+        // Only a lobby rejection can release a pending create/join request.
+        // Gameplay errors or malformed packets must not unlock duplicate requests.
+        if (roomRequestPending && ['server_full', 'invalid_room', 'room_not_found', 'room_full'].includes(packet.code)) roomRequestPending = false;
       } else if (packet.type === 'peer_joined') {
         if (!room || !validId(packet.playerId) || packet.playerId === playerId || (peerId && peerId !== packet.playerId)) return;
         peerId = packet.playerId;
