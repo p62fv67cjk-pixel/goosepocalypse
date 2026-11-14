@@ -46,6 +46,9 @@ const closeRoomIfEmpty = (room) => {
 wss.on('connection', (ws, request) => {
   const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true, lastState: null, lastStateAt: 0, lastReviveAt: -Infinity };
   peers.set(ws, peer);
+  // An errored transport must not emit an unhandled EventEmitter error and
+  // terminate the shared relay. Termination triggers the normal close cleanup.
+  ws.on('error', () => { ws.terminate(); });
   ws.on('pong', () => { peer.alive = true; });
   ws.on('message', (raw) => {
     const now = Date.now();
