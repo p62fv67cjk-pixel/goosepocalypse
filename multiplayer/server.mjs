@@ -189,7 +189,9 @@ const heartbeat = setInterval(() => {
     const peer = peers.get(ws);
     if (!peer || !peer.alive) { ws.terminate(); continue; }
     peer.alive = false;
-    ws.ping();
+    // Transport errors can occur between heartbeat inspection and ping.
+    // Isolate the failed socket rather than crashing the shared relay.
+    try { ws.ping(); } catch { ws.terminate(); }
   }
 }, 30000);
 wss.on('close', () => clearInterval(heartbeat));
