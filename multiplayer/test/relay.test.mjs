@@ -578,3 +578,20 @@ test('malformed WebSocket frame cannot terminate the shared relay', async () => 
     tcp.destroy();
   }
 });
+
+
+test('rate-limited socket closes without interrupting another room', async () => {
+  const noisy = await connect();
+  const closed = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Rate limit close timed out')), 2000);
+    noisy.once('close', (code) => { clearTimeout(timeout); resolve(code); });
+  });
+  // Burst above the per-second threshold, using valid but unjoined messages.
+  for (let i = 0; i < 35; i++) noisy.send(JSON.stringify({ type: 'action', data: { n: i } }));
+  assert.equal(await closed, 1008);
+  const survivor = await connect();
+  const joined = receive(survivor);
+  survivor.send(JSON.stringify({ type: 'create' }));
+  assert.equal((await joined).type, 'joined');
+  assert.equal(child.exitCode, null);
+});
