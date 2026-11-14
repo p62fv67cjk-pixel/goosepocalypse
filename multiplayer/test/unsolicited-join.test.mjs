@@ -71,3 +71,21 @@ test('joining cannot silently switch to a different room acknowledgement', () =>
   assert.equal(client.status.room, wanted);
   client.disconnect();
 });
+
+test('lobby errors must match the pending operation before permitting retries', () => {
+  let ws;
+  class Socket extends FakeSocket { constructor(url) { super(url); ws = this; } }
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: Socket });
+  client.connect(); ws.open();
+  const room = 'a'.repeat(24);
+  assert.equal(client.joinRoom(room), true);
+  ws.fire('message', { data: JSON.stringify({ type: 'error', code: 'server_full' }) });
+  assert.equal(client.createRoom(), false, 'create-only rejection must not unlock a pending join');
+  ws.fire('message', { data: JSON.stringify({ type: 'error', code: 'room_full' }) });
+  assert.equal(client.createRoom(), true, 'join rejection must unlock retry');
+  ws.fire('message', { data: JSON.stringify({ type: 'error', code: 'room_not_found' }) });
+  assert.equal(client.joinRoom(room), false, 'join-only rejection must not unlock a pending create');
+  ws.fire('message', { data: JSON.stringify({ type: 'error', code: 'server_full' }) });
+  assert.equal(client.joinRoom(room), true);
+  client.disconnect();
+});
