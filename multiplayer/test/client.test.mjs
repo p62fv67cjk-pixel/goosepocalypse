@@ -456,3 +456,27 @@ test('room creation and joining cannot overwrite an established session', () => 
   assert.equal(client.status.room, room);
   ws.close();
 });
+
+
+test('only one room request can be in flight and a rejected join can be retried', () => {
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  assert.equal(client.joinRoom(room), true);
+  assert.equal(client.joinRoom(room), false);
+  assert.equal(client.createRoom(), false);
+  assert.equal(ws.sent.length, 1);
+  ws.packet({ type: 'error', message: 'room_full' });
+  assert.equal(client.createRoom(), true);
+  assert.equal(ws.sent.length, 2);
+  ws.packet({ type: 'joined', room, playerId: idA });
+  assert.equal(client.joinRoom(room), false);
+  assert.equal(client.createRoom(), false);
+  ws.close();
+  client.connect();
+  const next = FakeSocket.instances.at(-1);
+  next.open();
+  assert.equal(client.createRoom(), true, 'disconnect clears pending request');
+  next.close();
+});
