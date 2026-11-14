@@ -439,3 +439,20 @@ test('disconnect completes and allows reconnect when socket.close throws', () =>
   assert.equal(client.status.playerId, idB, 'stale socket must not clear the new session');
   second.close();
 });
+
+
+test('room creation and joining cannot overwrite an established session', () => {
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket });
+  client.connect();
+  const ws = FakeSocket.instances.at(-1);
+  ws.open();
+  assert.equal(client.createRoom(), true);
+  ws.packet({ type: 'joined', room, playerId: idA });
+  const count = ws.sent.length;
+  assert.equal(client.createRoom(), false);
+  assert.equal(client.joinRoom(room), false);
+  assert.equal(client.joinRoom(null), false);
+  assert.equal(ws.sent.length, count, 'no duplicate room commands after joining');
+  assert.equal(client.status.room, room);
+  ws.close();
+});
