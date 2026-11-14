@@ -8,6 +8,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let playerId = null;
   let peerId = null;
   let roomRequestPending = false;
+  let requestedRoom = null;
   let lastStateSentAt = -Infinity;
   // A 60fps render loop must not trip the relay's 30-message/second disconnect limit.
   const STATE_INTERVAL_MS = 100;
@@ -59,9 +60,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (!['joined', 'peer_joined', 'peer_left', 'state', 'action', 'revive',
         'revive_accepted', 'host_changed', 'error'].includes(packet.type)) return;
       if (packet.type === 'joined') {
-        if (room || !roomRequestPending || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
+        if (room || !roomRequestPending || (requestedRoom && packet.room !== requestedRoom) || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
         lastStateSentAt = -Infinity;
         roomRequestPending = false;
+        requestedRoom = null;
         room = packet.room;
         playerId = packet.playerId;
         peerId = packet.peerId || null;
@@ -70,7 +72,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         // Permit a corrected request instead of leaving the lobby stuck.
         // Only a lobby rejection can release a pending create/join request.
         // Gameplay errors or malformed packets must not unlock duplicate requests.
-        if (roomRequestPending && ['server_full', 'invalid_room', 'room_not_found', 'room_full'].includes(packet.code)) roomRequestPending = false;
+        if (roomRequestPending && ['server_full', 'invalid_room', 'room_not_found', 'room_full'].includes(packet.code)) { roomRequestPending = false; requestedRoom = null; }
       } else if (packet.type === 'peer_joined') {
         if (!room || !validId(packet.playerId) || packet.playerId === playerId || (peerId && peerId !== packet.playerId)) return;
         peerId = packet.playerId;
@@ -104,7 +106,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     });
     ws.addEventListener('close', () => {
       if (current !== generation) return;
-      socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; lastStateSentAt = -Infinity;
+      socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; requestedRoom = null; lastStateSentAt = -Infinity;
       emit('disconnected');
     });
     ws.addEventListener('error', () => {
@@ -114,7 +116,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   function disconnect() {
     ++generation;
     const old = socket;
-    socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; lastStateSentAt = -Infinity;
+    socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; requestedRoom = null; lastStateSentAt = -Infinity;
     if (old) {
       // A browser/WebSocket shim can throw during close. Local teardown is
       // already complete, so do not let that exception break the game UI.
@@ -129,11 +131,13 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     createRoom: () => {
       if (room || roomRequestPending || !send({ type: 'create' })) return false;
       roomRequestPending = true;
+      requestedRoom = null;
       return true;
     },
     joinRoom: (code) => {
       if (room || roomRequestPending || typeof code !== 'string' || !/^[a-f0-9]{24}$/.test(code) || !send({ type: 'join', room: code })) return false;
       roomRequestPending = true;
+      requestedRoom = code;
       return true;
     },
     sendState: (data) => {
