@@ -80,7 +80,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         if (roomRequestPending && ((pendingKind === 'create' && packet.code === 'server_full') || (pendingKind === 'join' && ['invalid_room', 'room_not_found', 'room_full'].includes(packet.code)))) { roomRequestPending = false; requestedRoom = null; pendingKind = null; }
         // A rejected revive cannot later be confirmed by a delayed or forged acknowledgement.
         // Clear only revive-specific errors; unrelated gameplay errors must not cancel it.
-        if (['invalid_revive_target', 'revive_cooldown', 'revive_not_allowed', 'revive_delivery_failed'].includes(packet.code)) pendingReviveTarget = null; pendingReviveAt = null;
+        if (['invalid_revive_target', 'revive_cooldown', 'revive_not_allowed', 'revive_delivery_failed'].includes(packet.code)) {
+          pendingReviveTarget = null;
+          pendingReviveAt = null;
+        }
       } else if (packet.type === 'peer_joined') {
         if (!room || !validId(packet.playerId) || packet.playerId === playerId || peerId) return;
         peerId = packet.playerId;
