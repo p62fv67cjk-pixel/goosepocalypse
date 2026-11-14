@@ -56,3 +56,18 @@ test('unrelated relay errors cannot unlock a pending lobby request', () => {
   assert.equal(client.createRoom(), true);
   client.disconnect();
 });
+
+test('joining cannot silently switch to a different room acknowledgement', () => {
+  let ws;
+  class Socket extends FakeSocket { constructor(url) { super(url); ws = this; } }
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: Socket });
+  const wanted = 'a'.repeat(24), other = 'c'.repeat(24), playerId = 'b'.repeat(24);
+  client.connect(); ws.open();
+  assert.equal(client.joinRoom(wanted), true);
+  ws.fire('message', { data: JSON.stringify({ type: 'joined', room: other, playerId }) });
+  assert.equal(client.status.room, null);
+  assert.equal(client.joinRoom(other), false, 'mismatched acknowledgement must not unlock pending join');
+  ws.fire('message', { data: JSON.stringify({ type: 'joined', room: wanted, playerId }) });
+  assert.equal(client.status.room, wanted);
+  client.disconnect();
+});
