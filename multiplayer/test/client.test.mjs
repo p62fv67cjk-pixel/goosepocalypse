@@ -489,7 +489,7 @@ test('only one room request can be in flight and a rejected join can be retried'
   assert.equal(client.joinRoom(room), false);
   assert.equal(client.createRoom(), false);
   assert.equal(ws.sent.length, 1);
-  ws.packet({ type: 'error', message: 'room_full' });
+  ws.packet({ type: 'error', code: 'room_full' });
   assert.equal(client.createRoom(), true);
   assert.equal(ws.sent.length, 2);
   ws.packet({ type: 'joined', room, playerId: idA });
