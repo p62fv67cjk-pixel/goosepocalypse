@@ -149,7 +149,10 @@ wss.on('connection', (ws, request) => {
     if (msg.type === 'revive') {
       const targetId = msg.data.targetId;
       // Revive is a fixed command: do not forward arbitrary nested properties.
-      if (Object.keys(msg.data).length !== 1) {
+      if (Object.keys(msg.data).some(key => !['targetId', 'requestId'].includes(key)) ||
+          Object.keys(msg.data).length !== (Object.hasOwn(msg.data, 'requestId') ? 2 : 1) ||
+          (Object.hasOwn(msg.data, 'requestId') &&
+           (typeof msg.data.requestId !== 'string' || !/^[a-f0-9]{24}$/.test(msg.data.requestId)))) {
         return send(ws, { type: 'error', code: 'invalid_revive_target' });
       }
       if (typeof targetId !== 'string' || targetId === peer.playerId ||
@@ -185,7 +188,8 @@ wss.on('connection', (ws, request) => {
       // The game client still owns health restoration until authoritative sync exists.
       target.lastState = { ...to, downed: false };
       // This confirms relay delivery only, not authoritative health restoration.
-      return send(ws, { type: 'revive_accepted', targetId });
+      return send(ws, { type: 'revive_accepted', targetId,
+        ...(msg.data.requestId ? { requestId: msg.data.requestId } : {}) });
     }
     for (const other of peer.room.players.values()) {
       if (other !== peer) send(other.ws, { type: msg.type, playerId: peer.playerId, data: msg.data });
