@@ -170,7 +170,7 @@ test('does not surface gameplay packets before a room is joined', () => {
   ws.packet({ type: 'action', playerId: idB, data: { kind: 'fire' } });
   ws.packet({ type: 'revived', playerId: idB });
   assert.equal(events.filter(e => e.type === 'packet').length, 0);
-  ws.packet({ type: 'error', message: 'room unavailable' });
+  ws.packet({ type: 'error', code: 'room_not_found' });
   assert.equal(events.filter(e => e.type === 'packet').length, 1);
   client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
