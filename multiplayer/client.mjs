@@ -136,7 +136,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (packet.type === 'revive_accepted') { pendingReviveTarget = null; pendingReviveAt = null; }
       if (packet.type === 'host_changed' && (Object.keys(packet).length !== 2 || packet.playerId !== playerId || !validId(packet.playerId))) return;
       if (packet.type === 'revive' &&
-          (!packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
+          (Object.keys(packet).length !== 3 ||
+           !Object.keys(packet).every(key => ['type', 'playerId', 'data'].includes(key)) ||
+           !packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
            Object.keys(packet.data).length !== 1 || packet.data.targetId !== playerId)) return;
       emit('packet', { packet });
     });
