@@ -18,7 +18,12 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   // A 60fps render loop must not trip the relay's 30-message/second disconnect limit.
   const STATE_INTERVAL_MS = 100;
   const validId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/.test(value);
-  const emit = (type, data = {}) => onEvent({ type, ...data });
+  // User-provided UI callbacks are outside the transport's control. A rendering
+  // exception must not abort WebSocket message handling or strand room cleanup.
+  const emit = (type, data = {}) => {
+    try { onEvent({ type, ...data }); }
+    catch { /* Keep network state and disconnect cleanup independent of UI errors. */ }
+  };
   // Apply the same bounded snapshot contract before sending as when receiving.
   const validState = (d) => !!d && typeof d === 'object' && !Array.isArray(d) &&
     Number.isFinite(d.x) && Number.isFinite(d.z) &&
