@@ -111,10 +111,14 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       }
       // Treat network snapshots as untrusted even when the relay is expected to validate.
       // Never hand malformed positions or nested data to Three.js gameplay handlers.
-      if (packet.type === 'state') {
-        if (!validState(packet.data)) return;
+      if (packet.type === 'state' || packet.type === 'action') {
+        // Relay gameplay envelopes have exactly three fields. Reject injected
+        // metadata before it reaches a future renderer or action handler.
+        if (Object.keys(packet).length !== 3 ||
+            !Object.keys(packet).every(key => ['type', 'playerId', 'data'].includes(key))) return;
+        if (packet.type === 'state' && !validState(packet.data)) return;
+        if (packet.type === 'action' && !validAction(packet.data)) return;
       }
-      if (packet.type === 'action' && !validAction(packet.data)) return;
       // Control acknowledgements are also untrusted. Never show a rescue for
       // an unrelated target, or a host transition for another player.
       if (packet.type === 'revive_accepted') {
