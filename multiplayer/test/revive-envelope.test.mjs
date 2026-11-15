@@ -29,5 +29,16 @@ test('revive packets reject unexpected envelope fields without dropping valid re
   assert.equal(events.filter(e => e.packet?.type === 'revive').length, 0);
   ws.packet(valid);
   assert.equal(events.filter(e => e.packet?.type === 'revive').length, 1);
+  // The relay can now forward a per-attempt ID; it must reach the client,
+  // while malformed IDs and unexpected fields must still be rejected.
+  const withId = { ...valid, data: { targetId: self, requestId: 'd'.repeat(24) } };
+  for (const requestId of ['invalid', 'D'.repeat(24), 123, null]) {
+    ws.packet({ ...withId, data: { targetId: self, requestId } });
+  }
+  ws.packet({ ...withId, data: { ...withId.data, health: 100 } });
+  assert.equal(events.filter(e => e.packet?.type === 'revive').length, 1);
+  ws.packet(withId);
+  assert.equal(events.filter(e => e.packet?.type === 'revive').length, 2);
+  assert.deepEqual(events.at(-1).packet.data, withId.data);
   client.disconnect();
 });
