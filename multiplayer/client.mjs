@@ -208,7 +208,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       let timestamp;
       try { timestamp = now(); } catch { return false; }
       if (!Number.isFinite(timestamp)) return false;
-      if (pendingReviveTarget && pendingReviveAt !== null && timestamp >= pendingReviveAt && timestamp - pendingReviveAt < 5000) return false;
+      // A backwards wall-clock jump must not bypass the in-flight revive guard.
+      // Clear the request only after a full, forward-moving timeout.
+      if (pendingReviveTarget && pendingReviveAt !== null &&
+          (timestamp < pendingReviveAt || timestamp - pendingReviveAt < 5000)) return false;
       if (requestId !== null && !validId(requestId)) return false;
       if (!room || !validId(targetId) || targetId !== peerId ||
           !send({ type: 'revive', data: requestId === null ? { targetId } : { targetId, requestId } })) return false;
