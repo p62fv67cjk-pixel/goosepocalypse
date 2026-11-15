@@ -94,6 +94,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         if (['invalid_revive_target', 'revive_cooldown', 'revive_not_allowed', 'revive_delivery_failed'].includes(packet.code)) {
           pendingReviveTarget = null;
           pendingReviveAt = null;
+          pendingReviveRequestId = null;
         }
       } else if (packet.type === 'peer_joined') {
         if (!room || Object.keys(packet).length !== 2 || !validId(packet.playerId) || packet.playerId === playerId || peerId) return;
