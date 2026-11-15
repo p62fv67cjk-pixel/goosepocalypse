@@ -41,7 +41,9 @@ test('clock rollback cannot make an old revive acknowledgement valid', () => {
   time = 100;
   ws.packet({ type: 'revive_accepted', targetId: peer });
   assert.equal(events.filter(e => e.packet?.type === 'revive_accepted').length, 0);
-  assert.equal(client.revive(peer), true);
+  assert.equal(client.revive(peer), false, 'rollback cannot bypass the pending request');
+  time = 14000;
+  assert.equal(client.revive(peer), true, 'retry allowed after forward timeout');
   client.disconnect();
 });
 test('timely revive acknowledgement is still accepted exactly once', () => {
