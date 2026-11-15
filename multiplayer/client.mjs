@@ -191,7 +191,8 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       return true;
     },
     sendState: (data) => {
-      if (!room || !validState(data)) return false;
+      // Caller-owned objects can contain throwing getters or proxies. Never crash the render loop.
+      try { if (!room || !validState(data)) return false; } catch { return false; }
       // A broken clock provider must not throw through the iPhone render loop.
       let timestamp;
       try { timestamp = now(); } catch { return false; }
@@ -205,7 +206,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       lastStateSentAt = timestamp;
       return true;
     },
-    sendAction: (data) => !!room && validAction(data) && send({ type: 'action', data }),
+    sendAction: (data) => {
+      try { return !!room && validAction(data) && send({ type: 'action', data }); }
+      catch { return false; }
+    },
     revive: (targetId, requestId = null) => {
       // Lost relay responses must not permanently disable the revive button.
       // Expire the outstanding request after five seconds; the relay still
