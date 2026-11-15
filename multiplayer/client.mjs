@@ -108,8 +108,15 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (packet.type === 'action' && !validAction(packet.data)) return;
       // Control acknowledgements are also untrusted. Never show a rescue for
       // an unrelated target, or a host transition for another player.
-      if (packet.type === 'revive_accepted' &&
-          (!peerId || packet.targetId !== peerId || pendingReviveTarget !== peerId)) return;
+      if (packet.type === 'revive_accepted') {
+        // An acknowledgement arriving after the retry window is stale. Without
+        // per-attempt IDs, it must not report a successful current rescue.
+        let timestamp;
+        try { timestamp = now(); } catch { return; }
+        if (!Number.isFinite(timestamp) || pendingReviveAt === null ||
+            timestamp < pendingReviveAt || timestamp - pendingReviveAt >= 5000 ||
+            !peerId || packet.targetId !== peerId || pendingReviveTarget !== peerId) return;
+      }
       if (packet.type === 'revive_accepted') { pendingReviveTarget = null; pendingReviveAt = null; }
       if (packet.type === 'host_changed' && packet.playerId !== playerId) return;
       if (packet.type === 'revive' &&
