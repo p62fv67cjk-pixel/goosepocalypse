@@ -109,6 +109,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       // Control acknowledgements are also untrusted. Never show a rescue for
       // an unrelated target, or a host transition for another player.
       if (packet.type === 'revive_accepted') {
+        // Only the relay's documented acknowledgement shape is accepted.
+        // Extra fields must never be interpreted as future gameplay authority.
+        if (Object.keys(packet).length !== 2 || !Object.hasOwn(packet, 'targetId')) return;
         // An acknowledgement arriving after the retry window is stale. Without
         // per-attempt IDs, it must not report a successful current rescue.
         let timestamp;
