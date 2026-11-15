@@ -10,6 +10,9 @@ const wss = new WebSocketServer({
   // Reject disallowed browser origins during the HTTP upgrade, before a
   // WebSocket session is established or any game packets can be exchanged.
   verifyClient: ({ origin }, done) => {
+    // Bound idle pre-lobby sockets as well as rooms; otherwise an attacker can
+    // exhaust file descriptors without ever creating a room.
+    if (wss.clients.size >= MAX_CONNECTIONS) return done(false, 503, 'Server full');
     if (origin && (ALLOWED_ORIGINS.size === 0 || !ALLOWED_ORIGINS.has(origin))) {
       done(false, 403, 'Origin not allowed');
     } else {
@@ -21,6 +24,7 @@ const rooms = new Map();
 // Direct socket lookup avoids rebuilding every room's player list per heartbeat.
 const peers = new WeakMap();
 const MAX_ROOMS = 1000;
+const MAX_CONNECTIONS = Math.max(1, Math.min(4096, Number.parseInt(process.env.MAX_CONNECTIONS || '2048', 10) || 2048));
 // A disconnected or stalled client must not leave an indefinitely revivable snapshot.
 const REVIVE_STATE_MAX_AGE_MS = 1500;
 // Prevent a held revive button or replayed packet from flooding a teammate.
