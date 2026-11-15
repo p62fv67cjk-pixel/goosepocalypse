@@ -110,7 +110,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       // an unrelated target, or a host transition for another player.
       if (packet.type === 'revive_accepted' &&
           (!peerId || packet.targetId !== peerId || pendingReviveTarget !== peerId)) return;
-      if (packet.type === 'revive_accepted') pendingReviveTarget = null; pendingReviveAt = null;
+      if (packet.type === 'revive_accepted') { pendingReviveTarget = null; pendingReviveAt = null; }
       if (packet.type === 'host_changed' && packet.playerId !== playerId) return;
       if (packet.type === 'revive' &&
           (!packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
