@@ -73,6 +73,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         peerId = packet.peerId || null;
         pendingReviveTarget = null; pendingReviveAt = null;
       } else if (packet.type === 'error') {
+        // Relay errors are fixed control envelopes, not arbitrary game data.
+        // Reject malformed or extended packets before they can change lobby or revive state.
+        if (Object.keys(packet).length !== 2 || !Object.hasOwn(packet, 'code') ||
+            typeof packet.code !== 'string' || !/^[a-z_]{1,48}$/.test(packet.code)) return;
         // The relay rejects invalid/full room requests without closing the socket.
         // Permit a corrected request instead of leaving the lobby stuck.
         // Only a lobby rejection can release a pending create/join request.
