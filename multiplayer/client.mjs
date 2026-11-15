@@ -139,7 +139,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
           (Object.keys(packet).length !== 3 ||
            !Object.keys(packet).every(key => ['type', 'playerId', 'data'].includes(key)) ||
            !packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
-           Object.keys(packet.data).length !== 1 || packet.data.targetId !== playerId)) return;
+           !Object.keys(packet.data).every(key => ['targetId', 'requestId'].includes(key)) ||
+           Object.keys(packet.data).length !== (Object.hasOwn(packet.data, 'requestId') ? 2 : 1) ||
+           (Object.hasOwn(packet.data, 'requestId') && !validId(packet.data.requestId)) ||
+           packet.data.targetId !== playerId)) return;
       emit('packet', { packet });
     });
     ws.addEventListener('close', () => {
