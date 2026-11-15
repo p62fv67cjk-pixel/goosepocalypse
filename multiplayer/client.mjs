@@ -194,8 +194,11 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       let timestamp;
       try { timestamp = now(); } catch { return false; }
       if (!Number.isFinite(timestamp)) return false;
-      // Wall clocks can jump backwards on mobile; recover instead of freezing updates.
-      if (timestamp >= lastStateSentAt && timestamp - lastStateSentAt < STATE_INTERVAL_MS) return false;
+      // A backwards or frozen wall clock must not bypass the 10 Hz send budget.
+      // Fail closed until time catches up; otherwise Safari clock corrections can
+      // flood the relay and trigger its 30-packets/second disconnect limit.
+      if (lastStateSentAt !== -Infinity &&
+          (timestamp < lastStateSentAt || timestamp - lastStateSentAt < STATE_INTERVAL_MS)) return false;
       if (!send({ type: 'state', data })) return false;
       lastStateSentAt = timestamp;
       return true;
