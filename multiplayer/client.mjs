@@ -1,5 +1,5 @@
 // Browser-side transport only. No fake local multiplayer or health authority.
-export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, onEvent = () => {}, now = () => Date.now(), cryptoImpl = globalThis.crypto }) {
+export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, onEvent = () => {}, now = () => (typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now()), cryptoImpl = globalThis.crypto }) {
   if (!/^wss:\/\//.test(url)) throw new Error('Public multiplayer requires wss://');
   if (typeof WebSocketImpl !== 'function') throw new Error('WebSocket unavailable');
   let socket = null;
@@ -13,6 +13,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let pendingReviveTarget = null;
   let pendingReviveAt = null;
   let pendingReviveRequestId = null;
+  // Prefer Safari's monotonic performance clock over wall time, which can jump during play.
   let lastStateSentAt = -Infinity;
   // A 60fps render loop must not trip the relay's 30-message/second disconnect limit.
   const STATE_INTERVAL_MS = 100;
