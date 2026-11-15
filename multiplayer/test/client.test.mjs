@@ -396,7 +396,7 @@ test('ignores forged revive acknowledgements and host changes', () => {
   assert.equal(packets().length, afterLeave, 'departed teammate cannot be revived');
 });
 
-test('recovers state pacing after a backwards mobile clock adjustment', () => {
+test('backwards mobile clock cannot bypass 10 Hz movement pacing', () => {
   let time = 10000;
   const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: FakeSocket, now: () => time });
   client.connect();
@@ -405,12 +405,19 @@ test('recovers state pacing after a backwards mobile clock adjustment', () => {
   client.createRoom(); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA });
   assert.equal(client.sendState({ x: 0, z: 0 }), true);
+  // An earlier regression test expected a packet immediately on rollback,
+  // contradicting the fail-closed rate limiter and risking relay disconnects.
   time = 100;
-  assert.equal(client.sendState({ x: 1, z: 0 }), true, 'clock rollback must not freeze state for seconds');
-  assert.equal(client.sendState({ x: 2, z: 0 }), false, 'pacing must resume immediately');
-  time = 200;
-  assert.equal(client.sendState({ x: 3, z: 0 }), true);
-  assert.equal(ws.sent.length, 3);
+  for (let frame = 0; frame < 120; frame++) {
+    assert.equal(client.sendState({ x: frame, z: 0 }), false);
+  }
+  time = 10000;
+  assert.equal(client.sendState({ x: 1, z: 0 }), false, 'frozen clock cannot bypass pacing');
+  time = 10099;
+  assert.equal(client.sendState({ x: 2, z: 0 }), false);
+  time = 10100;
+  assert.equal(client.sendState({ x: 3, z: 0 }), true, 'send resumes at the actual interval boundary');
+  assert.equal(ws.sent.length, 2);
   ws.close();
 });
 
