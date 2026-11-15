@@ -63,7 +63,12 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (!['joined', 'peer_joined', 'peer_left', 'state', 'action', 'revive',
         'revive_accepted', 'host_changed', 'error'].includes(packet.type)) return;
       if (packet.type === 'joined') {
-        if (room || !roomRequestPending || (requestedRoom && packet.room !== requestedRoom) || !validId(packet.room) || !validId(packet.playerId) || (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
+        if (room || !roomRequestPending || ![4, 5].includes(Object.keys(packet).length) ||
+            !Object.keys(packet).every(key => ['type', 'room', 'playerId', 'host', 'peerId'].includes(key)) ||
+            !Object.hasOwn(packet, 'host') || typeof packet.host !== 'boolean' ||
+            (Object.hasOwn(packet, 'peerId') && packet.peerId == null) ||
+            (requestedRoom && packet.room !== requestedRoom) || !validId(packet.room) || !validId(packet.playerId) ||
+            (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
         lastStateSentAt = -Infinity;
         roomRequestPending = false;
         requestedRoom = null;
@@ -125,7 +130,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
             !peerId || packet.targetId !== peerId || pendingReviveTarget !== peerId) return;
       }
       if (packet.type === 'revive_accepted') { pendingReviveTarget = null; pendingReviveAt = null; }
-      if (packet.type === 'host_changed' && packet.playerId !== playerId) return;
+      if (packet.type === 'host_changed' && (Object.keys(packet).length !== 2 || packet.playerId !== playerId || !validId(packet.playerId))) return;
       if (packet.type === 'revive' &&
           (!packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
            Object.keys(packet.data).length !== 1 || packet.data.targetId !== playerId)) return;
