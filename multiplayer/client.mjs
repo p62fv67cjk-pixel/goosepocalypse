@@ -1,5 +1,5 @@
 // Browser-side transport only. No fake local multiplayer or health authority.
-export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, onEvent = () => {}, now = () => Date.now() }) {
+export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, onEvent = () => {}, now = () => Date.now(), cryptoImpl = globalThis.crypto }) {
   if (!/^wss:\/\//.test(url)) throw new Error('Public multiplayer requires wss://');
   if (typeof WebSocketImpl !== 'function') throw new Error('WebSocket unavailable');
   let socket = null;
@@ -170,7 +170,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       emit('disconnected');
     }
   }
-  return {
+  const api = {
     connect, disconnect,
     // Room membership is single-use per connection. A second create/join request
     // after joining would be rejected by the relay and confuse the game UI.
@@ -217,6 +217,17 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       pendingReviveRequestId = requestId;
       return true;
     },
+    // Prefer this for new UI integrations. Never substitute predictable Math.random IDs.
+    // Legacy revive(targetId) remains available for older clients and fixtures.
+    reviveWithGeneratedId: (targetId) => {
+      if (!cryptoImpl || typeof cryptoImpl.getRandomValues !== 'function') return false;
+      let bytes;
+      try { bytes = cryptoImpl.getRandomValues(new Uint8Array(12)); } catch { return false; }
+      if (!(bytes instanceof Uint8Array) || bytes.length !== 12) return false;
+      const requestId = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      return api.revive(targetId, requestId);
+    },
     get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId }; }
   };
+  return api;
 }
