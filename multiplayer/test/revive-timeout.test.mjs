@@ -41,6 +41,8 @@ test('clock rollback does not strand a pending revive request', () => {
   ws.packet({ type: 'peer_joined', playerId: peer });
   assert.equal(client.revive(peer), true);
   time = 100;
-  assert.equal(client.revive(peer), true);
+  assert.equal(client.revive(peer), false, 'rollback cannot bypass pending revive');
+  time = 14000;
+  assert.equal(client.revive(peer), true, 'retry succeeds after forward timeout');
   client.disconnect();
 });
