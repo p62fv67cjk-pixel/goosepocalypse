@@ -4,7 +4,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   // credentials to a malformed URL or a credential-bearing WebSocket address.
   let endpoint;
   try { endpoint = new URL(url); } catch { throw new Error('Public multiplayer requires a valid wss:// endpoint'); }
-  if (endpoint.protocol !== 'wss:' || !endpoint.hostname || endpoint.username || endpoint.password || endpoint.hash)
+  if (endpoint.protocol !== 'wss:' || !endpoint.hostname || endpoint.username || endpoint.password || endpoint.hash || endpoint.search)
     throw new Error('Public multiplayer requires a valid credential-free wss:// endpoint');
   if (typeof WebSocketImpl !== 'function') throw new Error('WebSocket unavailable');
   let socket = null;
