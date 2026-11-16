@@ -73,6 +73,8 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         if (room || !roomRequestPending || ![3, 4, 5].includes(Object.keys(packet).length) ||
             !Object.keys(packet).every(key => ['type', 'room', 'playerId', 'host', 'peerId'].includes(key)) ||
             (Object.hasOwn(packet, 'host') && typeof packet.host !== 'boolean') ||
+            (Object.hasOwn(packet, 'host') && ((pendingKind === 'create' && packet.host !== true) ||
+              (pendingKind === 'join' && packet.host !== false))) ||
             (Object.hasOwn(packet, 'peerId') && packet.peerId == null) ||
             (requestedRoom && packet.room !== requestedRoom) || !validId(packet.room) || !validId(packet.playerId) ||
             (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
