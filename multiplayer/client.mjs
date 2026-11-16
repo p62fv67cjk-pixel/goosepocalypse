@@ -1,6 +1,11 @@
 // Browser-side transport only. No fake local multiplayer or health authority.
 export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, onEvent = () => {}, now = () => (typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now()), cryptoImpl = globalThis.crypto }) {
-  if (!/^wss:\/\//.test(url)) throw new Error('Public multiplayer requires wss://');
+  // Parse the endpoint, not just its prefix. Never send room traffic or browser
+  // credentials to a malformed URL or a credential-bearing WebSocket address.
+  let endpoint;
+  try { endpoint = new URL(url); } catch { throw new Error('Public multiplayer requires a valid wss:// endpoint'); }
+  if (endpoint.protocol !== 'wss:' || !endpoint.hostname || endpoint.username || endpoint.password || endpoint.hash)
+    throw new Error('Public multiplayer requires a valid credential-free wss:// endpoint');
   if (typeof WebSocketImpl !== 'function') throw new Error('WebSocket unavailable');
   let socket = null;
   let generation = 0;
