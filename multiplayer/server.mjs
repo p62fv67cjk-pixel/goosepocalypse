@@ -70,7 +70,7 @@ wss.on('connection', (ws, request) => {
     // corrections must not extend a window indefinitely or permit a burst.
     const elapsedNow = performance.now();
     if (elapsedNow - peer.windowStart >= 1000) { peer.windowStart = elapsedNow; peer.messages = 0; }
-    const now = Date.now();
+    // Snapshot freshness and revive cooldowns must share the monotonic clock\n    // with rate limiting. Wall-clock rollback must never revive stale peers.\n    const now = elapsedNow;
     if (++peer.messages > 30) {
       // Closing an already-failed transport can itself throw. Rate limiting
       // must never terminate the shared relay's message handler.
