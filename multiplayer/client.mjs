@@ -12,6 +12,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   let room = null;
   let playerId = null;
   let peerId = null;
+  let isHost = false;
   let roomRequestPending = false;
   let requestedRoom = null;
   let pendingKind = null;
@@ -93,6 +94,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
         room = packet.room;
         playerId = packet.playerId;
         peerId = packet.peerId || null;
+        isHost = packet.host;
         pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null;
       } else if (packet.type === 'error') {
         // Relay errors are fixed control envelopes, not arbitrary game data.
@@ -156,7 +158,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
             !peerId || packet.targetId !== peerId || pendingReviveTarget !== peerId) return;
       }
       if (packet.type === 'revive_accepted') { pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null; }
-      if (packet.type === 'host_changed' && (Object.keys(packet).length !== 2 || packet.playerId !== playerId || !validId(packet.playerId))) return;
+      if (packet.type === 'host_changed') {
+        if (Object.keys(packet).length !== 2 || packet.playerId !== playerId || !validId(packet.playerId)) return;
+        isHost = true;
+      }
       if (packet.type === 'revive' &&
           (Object.keys(packet).length !== 3 ||
            !Object.keys(packet).every(key => ['type', 'playerId', 'data'].includes(key)) ||
@@ -169,7 +174,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     });
     ws.addEventListener('close', () => {
       if (current !== generation) return;
-      socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null; lastStateSentAt = -Infinity;
+      socket = null; room = null; playerId = null; peerId = null; isHost = false; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null; lastStateSentAt = -Infinity;
       emit('disconnected');
     });
     ws.addEventListener('error', () => {
@@ -179,7 +184,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   function disconnect() {
     ++generation;
     const old = socket;
-    socket = null; room = null; playerId = null; peerId = null; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null; lastStateSentAt = -Infinity;
+    socket = null; room = null; playerId = null; peerId = null; isHost = false; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null; lastStateSentAt = -Infinity;
     if (old) {
       // A browser/WebSocket shim can throw during close. Local teardown is
       // already complete, so do not let that exception break the game UI.
@@ -254,7 +259,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       const requestId = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
       return api.revive(targetId, requestId);
     },
-    get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId }; }
+    get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId, isHost }; }
   };
   return api;
 }
