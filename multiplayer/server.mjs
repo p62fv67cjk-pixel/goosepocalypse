@@ -65,7 +65,10 @@ wss.on('connection', (ws, request) => {
   // terminate the shared relay. Termination triggers the normal close cleanup.
   ws.on('error', () => { try { ws.terminate(); } catch { /* already unusable */ } });
   ws.on('pong', () => { peer.alive = true; });
-  ws.on('message', (raw) => {
+  ws.on('message', (raw, isBinary) => {
+    // The protocol is JSON text only. Reject binary frames rather than decoding
+    // arbitrary bytes as UTF-8 and accidentally treating them as game commands.
+    if (isBinary) return send(ws, { type: 'error', code: 'binary_not_allowed' });
     // Rate limiting must use elapsed monotonic time. Device/system wall-clock
     // corrections must not extend a window indefinitely or permit a burst.
     const elapsedNow = performance.now();
