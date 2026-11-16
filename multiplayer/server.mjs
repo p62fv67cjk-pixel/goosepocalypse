@@ -2,6 +2,7 @@
 // Run: npm install && npm start. Deploy behind TLS (wss://) for iPhone Safari.
 import { WebSocketServer, WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 
 const port = Number(process.env.PORT || 8787);
 const wss = new WebSocketServer({
@@ -58,15 +59,18 @@ const closeRoomIfEmpty = (room) => {
   if (room.players.size === 0) rooms.delete(room.code);
 };
 wss.on('connection', (ws, request) => {
-  const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: Date.now(), alive: true, lastState: null, lastStateAt: 0, lastReviveAt: -Infinity };
+  const peer = { ws, room: null, playerId: id(), messages: 0, windowStart: performance.now(), alive: true, lastState: null, lastStateAt: 0, lastReviveAt: -Infinity };
   peers.set(ws, peer);
   // An errored transport must not emit an unhandled EventEmitter error and
   // terminate the shared relay. Termination triggers the normal close cleanup.
   ws.on('error', () => { try { ws.terminate(); } catch { /* already unusable */ } });
   ws.on('pong', () => { peer.alive = true; });
   ws.on('message', (raw) => {
+    // Rate limiting must use elapsed monotonic time. Device/system wall-clock
+    // corrections must not extend a window indefinitely or permit a burst.
+    const elapsedNow = performance.now();
+    if (elapsedNow - peer.windowStart >= 1000) { peer.windowStart = elapsedNow; peer.messages = 0; }
     const now = Date.now();
-    if (now - peer.windowStart >= 1000) { peer.windowStart = now; peer.messages = 0; }
     if (++peer.messages > 30) {
       // Closing an already-failed transport can itself throw. Rate limiting
       // must never terminate the shared relay's message handler.
