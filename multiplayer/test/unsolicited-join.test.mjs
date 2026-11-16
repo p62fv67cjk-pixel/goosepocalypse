@@ -19,11 +19,11 @@ test('accept joined only in response to a pending create or join', () => {
   const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: Socket, onEvent: e => events.push(e) });
   const room = 'a'.repeat(24), playerId = 'b'.repeat(24);
   client.connect(); ws.open();
-  ws.fire('message', { data: JSON.stringify({ type: 'joined', room, playerId }) });
+  ws.fire('message', { data: JSON.stringify({ type: 'joined', room, playerId, host: true }) });
   assert.equal(client.status.room, null);
   assert.equal(events.filter(e => e.type === 'packet').length, 0);
   assert.equal(client.createRoom(), true);
-  ws.fire('message', { data: JSON.stringify({ type: 'joined', room, playerId }) });
+  ws.fire('message', { data: JSON.stringify({ type: 'joined', room, playerId, host: true }) });
   assert.equal(client.status.room, room);
   assert.equal(client.createRoom(), false);
   assert.equal(events.filter(e => e.type === 'packet').length, 1);
@@ -67,7 +67,7 @@ test('joining cannot silently switch to a different room acknowledgement', () =>
   ws.fire('message', { data: JSON.stringify({ type: 'joined', room: other, playerId }) });
   assert.equal(client.status.room, null);
   assert.equal(client.joinRoom(other), false, 'mismatched acknowledgement must not unlock pending join');
-  ws.fire('message', { data: JSON.stringify({ type: 'joined', room: wanted, playerId }) });
+  ws.fire('message', { data: JSON.stringify({ type: 'joined', room: wanted, playerId, host: false, peerId: 'd'.repeat(24) }) });
   assert.equal(client.status.room, wanted);
   client.disconnect();
 });
