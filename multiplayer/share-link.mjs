@@ -20,5 +20,5 @@ export function readRoomInvite(pageUrl) {
   try { url = new URL(pageUrl); } catch { return null; }
   if (url.protocol !== 'https:' || url.username || url.password) return null;
   const codes = url.searchParams.getAll('room');
-  return codes.length === 1 && ROOM_RE.test(codes[0]) ? codes[0] : null;
+  // Refuse extra parameters instead of treating a link with embedded tokens\n  // or conflicting routing hints as a clean room invitation.\n  return [...url.searchParams.keys()].length === 1 &&\n    codes.length === 1 && ROOM_RE.test(codes[0]) ? codes[0] : null;
 }
