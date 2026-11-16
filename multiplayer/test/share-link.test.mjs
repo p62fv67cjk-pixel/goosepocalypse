@@ -14,7 +14,7 @@ test('rejects malformed, duplicated and insecure invitations', () => {
   for (const url of [
     'http://game.example/play?room=' + code,
     'https://game.example/play?room=invalid',
-    'https://game.example/play?room=' + code + '&room=' + code,
+    'https://game.example/play?room=' + code + '&room=' + code,\n    'https://game.example/play?room=' + code + '&token=secret',\n    'https://game.example/play?token=secret&room=' + code,
     'https://user:secret@game.example/play?room=' + code,
     'not a url'
   ]) assert.equal(readRoomInvite(url), null);
