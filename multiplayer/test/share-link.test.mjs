@@ -16,6 +16,8 @@ test('rejects malformed, duplicated and insecure invitations', () => {
     'https://game.example/play?room=invalid',
     'https://game.example/play?room=' + code + '&room=' + code,
     'https://game.example/play?room=' + code + '&token=secret',
+    'https://game.example/play?room=' + code + '#access_token=secret',
+    'https://game.example/play?room=' + code + '#room=' + code,
     'https://game.example/play?token=secret&room=' + code,
     'https://user:secret@game.example/play?room=' + code,
     'not a url'
