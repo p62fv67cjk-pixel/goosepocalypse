@@ -18,7 +18,7 @@ export function createRoomInvite(pageUrl, roomCode) {
 export function readRoomInvite(pageUrl) {
   let url;
   try { url = new URL(pageUrl); } catch { return null; }
-  if (url.protocol !== 'https:' || url.username || url.password) return null;
+  if (url.protocol !== 'https:' || url.username || url.password || url.hash) return null;
   const codes = url.searchParams.getAll('room');
   // Refuse extra parameters instead of treating a link with embedded tokens
   // or conflicting routing hints as a clean room invitation.
