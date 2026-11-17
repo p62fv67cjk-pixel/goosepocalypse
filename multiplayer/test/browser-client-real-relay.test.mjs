@@ -77,6 +77,20 @@ test('real relay and browser client: host handoff, replacement, and state identi
     const state = c.events.find(e => e.type === 'packet' && e.packet.type === 'state').packet;
     assert.equal(state.playerId, promotedId);
     assert.deepEqual(state.data, { x: 7, z: -2, downed: false });
+    // Verify the replacement guest can send movement and actions back through
+    // the real relay, not merely receive the promoted host's snapshots.
+    assert.equal(c.client.sendState({ x: -4, y: 1, z: 9, yaw: 0.5, downed: false }), true);
+    await until(() => b.events.some(e => e.type === 'packet' && e.packet.type === 'state' &&
+      e.packet.playerId === c.client.status.playerId), 'guest movement to promoted host');
+    const guestState = b.events.find(e => e.type === 'packet' && e.packet.type === 'state' &&
+      e.packet.playerId === c.client.status.playerId).packet;
+    assert.deepEqual(guestState.data, { x: -4, y: 1, z: 9, yaw: 0.5, downed: false });
+    assert.equal(c.client.sendAction({ kind: 'fire', aiming: true }), true);
+    await until(() => b.events.some(e => e.type === 'packet' && e.packet.type === 'action' &&
+      e.packet.playerId === c.client.status.playerId), 'guest action to promoted host');
+    const guestAction = b.events.find(e => e.type === 'packet' && e.packet.type === 'action' &&
+      e.packet.playerId === c.client.status.playerId).packet;
+    assert.deepEqual(guestAction.data, { kind: 'fire', aiming: true });
   } finally {
     for (const { client } of clients) client.disconnect();
     relay.kill();
