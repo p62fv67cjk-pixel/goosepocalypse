@@ -25,7 +25,7 @@ test('state and action packets reject extra envelope fields but allow valid peer
   ws.readyState = Socket.OPEN;
   ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room, playerId: self });
+  ws.packet({ type: 'joined', room, playerId: self, host: true });
   ws.packet({ type: 'peer_joined', playerId: peer });
   ws.packet({ type: 'state', playerId: peer, data: { x: 1, z: 2 }, health: 0 });
   ws.packet({ type: 'action', playerId: peer, data: { jump: true }, admin: true });
