@@ -20,7 +20,7 @@ function setup(cryptoImpl, now = () => 1000) {
   const ws = Socket.latest;
   ws.readyState = 1; ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room, playerId: self });
+  ws.packet({ type: 'joined', room, playerId: self, host: true });
   ws.packet({ type: 'peer_joined', playerId: peer });
   return { client, ws, events };
 }
