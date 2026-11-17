@@ -250,7 +250,8 @@ test('rejects malformed teammate snapshots and revives not addressed to this pla
   const ws = FakeSocket.instances.at(-1);
   ws.open();
   client.createRoom(); ws.sent.pop();
-  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB, host: true });
+  ws.packet({ type: 'joined', room, playerId: idA, host: true });
+  ws.packet({ type: 'peer_joined', playerId: idB });
   const gameplay = () => events.filter(e => e.type === 'packet' && ['state', 'revive'].includes(e.packet.type));
   ws.packet({ type: 'state', playerId: idB, data: { x: 1 } });
   ws.packet({ type: 'state', playerId: idB, data: { x: 1, z: 2, health: 101 } });
@@ -310,7 +311,8 @@ test('rejects malformed inbound teammate actions before gameplay dispatch', () =
   const ws = FakeSocket.instances.at(-1);
   ws.open();
   client.createRoom(); ws.sent.pop();
-  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB, host: true });
+  ws.packet({ type: 'joined', room, playerId: idA, host: true });
+  ws.packet({ type: 'peer_joined', playerId: idB });
   const actions = () => events.filter(e => e.type === 'packet' && e.packet.type === 'action');
   for (const data of [null, [], { nested: {} }, { note: 'x'.repeat(65) },
     { 'bad-key': true }, { angle: 10001 }, { angle: 'x', extra: [] },
@@ -457,7 +459,7 @@ test('disconnect completes and allows reconnect when socket.close throws', () =>
   first.packet({ type: 'joined', room, playerId: idA, host: true });
   first.close = () => { throw new Error('iOS socket teardown failed'); };
   assert.doesNotThrow(() => client.disconnect());
-  assert.deepEqual(client.status, { connected: false, room: null, playerId: null, peerId: null });
+  assert.deepEqual(client.status, { connected: false, room: null, playerId: null, peerId: null, isHost: false });
   assert.equal(events.filter(event => event.type === 'disconnected').length, 1);
   client.connect();
   const second = FakeSocket.instances.at(-1);
