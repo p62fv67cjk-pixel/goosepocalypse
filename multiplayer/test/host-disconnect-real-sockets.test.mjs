@@ -62,12 +62,19 @@ test('real sockets: guest inherits host role after disconnect and replacement ca
     assert.equal((await hostNotice).playerId, guestInfo.playerId);
 
     // Register both listeners before closing: host_changed and peer_left are separate packets.
-    const promoted = receive(guest);
+    const notices = [];
+    const onNotice = raw => notices.push(JSON.parse(raw.toString()));
+    guest.on('message', onNotice);
     host.close();
     await once(host, 'close');
-    assert.deepEqual(await promoted, { type: 'host_changed', playerId: guestInfo.playerId });
-    // The peer_left notification may already have arrived; attach before close in future
-    // if asserting its exact ordering. A new guest proves the room remains usable.
+    for (let attempt = 0; attempt < 40 && notices.length < 2; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    guest.off('message', onNotice);
+    assert.deepEqual(notices, [
+      { type: 'host_changed', playerId: guestInfo.playerId },
+      { type: 'peer_left', playerId: hostInfo.playerId }
+    ]);
     const replacement = await connect();
     const replacementJoined = receive(replacement);
     const guestNotice = receive(guest);
