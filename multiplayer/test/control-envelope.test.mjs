@@ -35,7 +35,7 @@ test('extended or malformed joined envelopes cannot establish membership', () =>
 });
 test('host change requires an exact envelope for the local player', () => {
   const { client, ws, events } = setup();
-  ws.packet({ type: 'joined', room, playerId: self, host: false, peerId: peer });
+  ws.packet({ type: 'joined', room, playerId: self, host: true });
   ws.packet({ type: 'host_changed', playerId: self, elevated: true });
   ws.packet({ type: 'host_changed', playerId: peer });
   assert.equal(events.filter(e => e.packet?.type === 'host_changed').length, 0);
