@@ -30,7 +30,7 @@ test('default browser clock uses monotonic performance time despite wall-clock r
     ws.readyState = Socket.OPEN;
     ws.fire('open');
     assert.equal(client.createRoom(), true);
-    ws.packet({ type: 'joined', room: 'a'.repeat(24), playerId: 'b'.repeat(24) });
+    ws.packet({ type: 'joined', room: 'a'.repeat(24), playerId: 'b'.repeat(24), host: true });
     assert.equal(client.sendState({ x: 1, z: 2 }), true);
     wallClock = -100000;
     monotonic = 1050;
