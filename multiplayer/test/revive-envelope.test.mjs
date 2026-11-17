@@ -20,7 +20,7 @@ test('revive packets reject unexpected envelope fields without dropping valid re
   const ws = Socket.latest;
   ws.readyState = 1; ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room, playerId: self });
+  ws.packet({ type: 'joined', room, playerId: self, host: true });
   ws.packet({ type: 'peer_joined', playerId: peer });
   const valid = { type: 'revive', playerId: peer, data: { targetId: self } };
   ws.packet({ ...valid, health: 100 });
