@@ -22,7 +22,7 @@ test('duplicate peer_joined does not trigger repeated teammate initialization', 
   socket.readyState = 1;
   socket.fire('open');
   assert.equal(client.createRoom(), true);
-  socket.packet({ type: 'joined', room, playerId: self });
+  socket.packet({ type: 'joined', room, playerId: self, host: true });
   socket.packet({ type: 'peer_joined', playerId: teammate });
   socket.packet({ type: 'peer_joined', playerId: teammate });
   socket.packet({ type: 'peer_joined', playerId: replacement });
