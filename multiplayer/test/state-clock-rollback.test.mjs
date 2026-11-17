@@ -21,7 +21,7 @@ test('clock rollback or frozen clock cannot flood the 10 Hz state budget', () =>
   ws.readyState = Socket.OPEN;
   ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room: 'a'.repeat(24), playerId: 'b'.repeat(24) });
+  ws.packet({ type: 'joined', room: 'a'.repeat(24), playerId: 'b'.repeat(24), host: true });
   const state = { x: 1, z: 2 };
   assert.equal(client.sendState(state), true);
   for (let i = 0; i < 100; i++) {
