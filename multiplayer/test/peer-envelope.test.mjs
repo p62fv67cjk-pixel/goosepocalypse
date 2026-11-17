@@ -27,7 +27,7 @@ test('unexpected peer membership fields cannot change teammate identity', () => 
   ws.readyState = Socket.OPEN;
   ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room, playerId: self });
+  ws.packet({ type: 'joined', room, playerId: self, host: true });
   ws.packet({ type: 'peer_joined', playerId: first, health: 0 });
   assert.equal(client.status.peerId, null);
   ws.packet({ type: 'peer_joined', playerId: first });
