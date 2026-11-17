@@ -23,7 +23,7 @@ test('revive IDs reject stale and mismatched acknowledgements across retries', (
   const ws = Socket.latest;
   ws.readyState = Socket.OPEN; ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room, playerId: self });
+  ws.packet({ type: 'joined', room, playerId: self, host: true });
   ws.packet({ type: 'peer_joined', playerId: peer });
   assert.equal(client.revive(peer, 'bad'), false);
   assert.equal(client.revive(peer, first), true);
