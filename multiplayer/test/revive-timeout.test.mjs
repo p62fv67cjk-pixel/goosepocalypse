@@ -20,7 +20,7 @@ test('lost revive acknowledgement does not permanently lock retry', () => {
   const ws = Socket.latest;
   ws.readyState = 1; ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room, playerId: self });
+  ws.packet({ type: 'joined', room, playerId: self, host: true });
   ws.packet({ type: 'peer_joined', playerId: peer });
   assert.equal(client.revive(peer), true);
   time += 4999;
@@ -37,7 +37,7 @@ test('clock rollback does not strand a pending revive request', () => {
   const ws = Socket.latest;
   ws.readyState = 1; ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room, playerId: self });
+  ws.packet({ type: 'joined', room, playerId: self, host: true });
   ws.packet({ type: 'peer_joined', playerId: peer });
   assert.equal(client.revive(peer), true);
   time = 100;
