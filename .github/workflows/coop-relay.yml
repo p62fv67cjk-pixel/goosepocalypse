@@ -12,6 +12,7 @@ on:
 jobs:
   relay:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: multiplayer
@@ -21,4 +22,6 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
-      - run: npm test
+      # A leaked WebSocket handle or relay child must fail visibly instead of
+      # leaving the PR's only co-op gate in progress indefinitely.
+      - run: timeout --signal=TERM --kill-after=10s 180s npm test
