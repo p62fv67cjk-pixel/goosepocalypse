@@ -521,7 +521,9 @@ test('revive acknowledgement requires an outstanding request and cannot be repla
   const ws = FakeSocket.instances.at(-1);
   ws.open();
   client.createRoom();
-  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB, host: true });
+  ws.packet({ type: 'joined', room, playerId: idA, host: true });
+  ws.packet({ type: 'peer_joined', playerId: idB });
+  assert.equal(client.status.peerId, idB, 'relay must establish teammate membership before revive');
   const acknowledgements = () => events.filter(e => e.type === 'packet' && e.packet.type === 'revive_accepted').length;
   ws.packet({ type: 'revive_accepted', targetId: idB });
   assert.equal(acknowledgements(), 0);
