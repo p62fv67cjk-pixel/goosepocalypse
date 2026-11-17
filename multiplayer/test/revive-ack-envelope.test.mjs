@@ -27,8 +27,9 @@ test('malformed revive acknowledgement cannot consume an outstanding rescue', ()
   assert.equal(client.createRoom(), true);
   socket.packet({ type: 'joined', room, playerId: self, host: true });
   socket.packet({ type: 'peer_joined', playerId: peer });
-  assert.equal(client.revive(peer), true);
-  const requestId = socket.sent.at(-1).data.requestId;
+  const requestId = 'd'.repeat(24);
+  assert.equal(client.revive(peer, requestId), true);
+  assert.equal(socket.sent.at(-1).data.requestId, requestId);
   assert.match(requestId, /^[a-f0-9]{24}$/);
   for (const malformed of [
     { type: 'revive_accepted', targetId: peer, health: 100 },
