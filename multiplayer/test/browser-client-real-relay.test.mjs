@@ -34,6 +34,12 @@ test('real relay and browser client: host handoff, replacement, and state identi
     stdio: 'ignore'
   });
   const clients = [];
+  // Always reap the relay child. A dangling process or open socket can keep
+  // Node's test runner alive even after an assertion has failed.
+  const relayExited = new Promise(resolve => {
+    relay.once('exit', (code, signal) => resolve({ code, signal }));
+    relay.once('error', error => resolve({ error: error.message }));
+  });
   const make = () => {
     const events = [];
     const client = createCoopClient({
@@ -93,6 +99,14 @@ test('real relay and browser client: host handoff, replacement, and state identi
     assert.deepEqual(guestAction.data, { kind: 'fire', aiming: true });
   } finally {
     for (const client of clients) client.disconnect();
-    relay.kill();
+    if (relay.exitCode === null && relay.signalCode === null) relay.kill('SIGTERM');
+    const outcome = await Promise.race([
+      relayExited,
+      delay(2000).then(() => null)
+    ]);
+    if (!outcome && relay.exitCode === null && relay.signalCode === null) {
+      relay.kill('SIGKILL');
+      await Promise.race([relayExited, delay(1000)]);
+    }
   }
 });
