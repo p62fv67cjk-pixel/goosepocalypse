@@ -92,7 +92,7 @@ test('real relay and browser client: host handoff, replacement, and state identi
       e.packet.playerId === c.client.status.playerId).packet;
     assert.deepEqual(guestAction.data, { kind: 'fire', aiming: true });
   } finally {
-    for (const { client } of clients) client.disconnect();
+    for (const client of clients) client.disconnect();
     relay.kill();
   }
 });
