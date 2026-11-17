@@ -75,7 +75,9 @@ test('real relay and browser client: host handoff, replacement, and state identi
     c.client.connect();
     await until(() => c.client.status.connected, 'replacement connection');
     assert.equal(c.client.joinRoom(code), true);
-    await until(() => b.client.status.peerId === c.client.status.playerId, 'replacement membership');
+    await until(() => b.client.status.peerId === c.client.status.playerId &&
+      c.client.status.peerId === promotedId && c.client.status.room === code,
+      'bidirectional replacement membership');
     assert.equal(c.client.status.peerId, promotedId);
     assert.equal(c.client.status.isHost, false);
     assert.equal(b.client.sendState({ x: 7, z: -2, downed: false }), true);
