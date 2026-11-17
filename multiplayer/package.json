@@ -2,7 +2,7 @@
   "name": "geese-with-teeth-coop-relay",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node server.mjs", "test": "node --test test/*.test.mjs" },
+  "scripts": { "start": "node server.mjs", "test": "node --test --test-concurrency=1 test/*.test.mjs" },
   "dependencies": { "ws": "^8.18.0" },
   "engines": { "node": ">=22" }
 }
