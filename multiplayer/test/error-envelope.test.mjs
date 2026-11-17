@@ -43,7 +43,7 @@ test('malformed relay errors cannot cancel pending revival', () => {
   socket.readyState = Socket.OPEN;
   socket.fire('open');
   assert.equal(client.createRoom(), true);
-  socket.packet({ type: 'joined', room, playerId: self });
+  socket.packet({ type: 'joined', room, playerId: self, host: true });
   socket.packet({ type: 'peer_joined', playerId: peer });
   assert.equal(client.revive(peer), true);
   socket.packet({ type: 'error', code: 'revive_not_allowed', data: { downed: false } });
