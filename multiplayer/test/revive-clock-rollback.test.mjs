@@ -22,7 +22,7 @@ test('backwards clock cannot bypass in-flight revive; forward timeout permits re
   ws.readyState = Socket.OPEN;
   ws.fire('open');
   assert.equal(client.createRoom(), true);
-  ws.packet({ type: 'joined', room: 'a'.repeat(24), playerId: 'b'.repeat(24) });
+  ws.packet({ type: 'joined', room: 'a'.repeat(24), playerId: 'b'.repeat(24), host: true });
   ws.packet({ type: 'peer_joined', playerId: 'c'.repeat(24) });
   const target = 'c'.repeat(24);
   assert.equal(client.revive(target, '1'.repeat(24)), true);
