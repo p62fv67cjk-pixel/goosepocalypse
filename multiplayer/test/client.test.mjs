@@ -107,10 +107,10 @@ test('joined packets cannot replace established identity or assign self as peer'
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
-  client.createRoom(); ws.sent.pop();
+  client.joinRoom(room); ws.sent.pop();
   ws.packet({ type: 'joined', room, playerId: idA, peerId: idA });
   assert.equal(client.status.room, null);
-  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB, host: true });
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB, host: false });
   assert.equal(client.status.playerId, idA);
   assert.equal(client.status.peerId, idB);
   ws.packet({ type: 'joined', room: 'd'.repeat(24), playerId: idB, host: true });
@@ -126,8 +126,8 @@ test('conflicting peer announcements and stale departures cannot replace active 
   client.connect();
   const ws = FakeSocket.instances.at(-1);
   ws.open();
-  client.createRoom(); ws.sent.pop();
-  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB, host: true });
+  client.joinRoom(room); ws.sent.pop();
+  ws.packet({ type: 'joined', room, playerId: idA, peerId: idB, host: false });
   const thirdId = 'd'.repeat(24);
   const before = events.length;
   ws.packet({ type: 'peer_joined', playerId: thirdId });
