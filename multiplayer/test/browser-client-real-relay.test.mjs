@@ -26,7 +26,7 @@ async function port() {
   return value;
 }
 
-test('real relay and browser client: host handoff, replacement, and state identity', async () => {
+test('real relay and browser client: host handoff, replacement, and state identity', { timeout: 30000 }, async () => {
   const p = await port();
   const relay = spawn(process.execPath, ['server.mjs'], {
     cwd: new URL('..', import.meta.url),
@@ -47,7 +47,7 @@ test('real relay and browser client: host handoff, replacement, and state identi
   try {
     const a = make();
     // Startup can take a moment; retry only before a connection is established.
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 8; i++) {
       a.client.connect();
       try { await until(() => a.client.status.connected, 'relay startup'); break; }
       catch { a.client.disconnect(); await delay(50); }
