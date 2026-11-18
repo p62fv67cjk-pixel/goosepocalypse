@@ -43,7 +43,7 @@ test('relay rejects action identity spoofing but forwards authenticated actions'
     guest.send(JSON.stringify({ type: 'join', room: room.room }));
     const guestInfo = await joined;
     await notice;
-    for (const key of ['playerId', 'peerId', 'room', 'host', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty']) {
+    for (const key of ['playerId', 'peerId', 'room', 'host', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty', 'PLAYERID', 'PeerId', 'ROOM', 'HOST', 'Constructor', 'PROTOTYPE', 'TOSTRING', 'VALUEOF', 'HASOWNPROPERTY']) {
       const denied = next(host);
       host.send(JSON.stringify({ type: 'action', data: { kind: 'fire', [key]: guestInfo.playerId } }));
       assert.equal((await denied).code, 'invalid_action', key);
