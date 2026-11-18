@@ -32,3 +32,23 @@ test('own undefined optional fields cannot vanish when serialized', () => {
   assert.deepEqual(socket.sent.at(-1).data, { x: 1, z: 2, health: 0, downed: true });
   client.disconnect();
 });
+
+test('non-enumerable snapshot fields cannot silently disappear on the wire', () => {
+  let now = 1000;
+  const client = createCoopClient({ url: 'wss://example.org', WebSocketImpl: Socket, now: () => now });
+  client.connect();
+  const socket = Socket.latest;
+  socket.readyState = Socket.OPEN;
+  assert.equal(client.createRoom(), true);
+  socket.packet({ type: 'joined', room: 'c'.repeat(24), playerId: 'a'.repeat(24), host: true });
+  for (const key of ['x', 'z', 'y', 'yaw', 'health', 'downed']) {
+    const data = { x: 1, z: 2 };
+    const value = key === 'downed' ? true : key === 'health' ? 20 : 1;
+    Object.defineProperty(data, key, { value, enumerable: false, configurable: true });
+    assert.equal(client.sendState(data), false, key);
+  }
+  assert.equal(socket.sent.filter(packet => packet.type === 'state').length, 0);
+  assert.equal(client.sendState({ x: 1, z: 2, health: 20, downed: true }), true);
+  assert.deepEqual(socket.sent.at(-1).data, { x: 1, z: 2, health: 20, downed: true });
+  client.disconnect();
+});
