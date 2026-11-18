@@ -127,7 +127,7 @@ wss.on('connection', (ws, request) => {
         Object.entries(msg.data).some(([key, value]) =>
           key.length > 32 || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(key) ||
           // Never allow an untrusted action payload to masquerade as relay identity.
-          ['playerId', 'peerId', 'room', 'host'].includes(key) ||
+          ['playerId', 'peerId', 'room', 'host', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty'].includes(key) ||
           !((typeof value === 'string' && value.length <= 64) ||
             typeof value === 'boolean' ||
             (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 10000))))) {
