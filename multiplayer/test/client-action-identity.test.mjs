@@ -21,7 +21,7 @@ test('browser refuses reserved identity action fields before sending to relay', 
   assert.equal(client.createRoom(), true);
   socket.receive({ type: 'joined', room: 'c'.repeat(24), playerId: 'a'.repeat(24), host: true });
   socket.sent.length = 0;
-  for (const key of ['playerId', 'peerId', 'room', 'host']) {
+  for (const key of ['playerId', 'peerId', 'room', 'host', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty']) {
     assert.equal(client.sendAction({ kind: 'fire', [key]: 'b'.repeat(24) }), false, key);
   }
   assert.deepEqual(socket.sent, []);
