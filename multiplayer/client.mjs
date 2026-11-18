@@ -32,6 +32,8 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   };
   // Apply the same bounded snapshot contract before sending as when receiving.
   const validState = (d) => !!d && typeof d === 'object' && !Array.isArray(d) &&
+    // JSON.stringify ignores inherited coordinates: require both fields on the snapshot.
+    Object.hasOwn(d, 'x') && Object.hasOwn(d, 'z') &&
     Number.isFinite(d.x) && Number.isFinite(d.z) &&
     Math.abs(d.x) <= 10000 && Math.abs(d.z) <= 10000 &&
     Object.keys(d).every(key => ['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key)) &&
