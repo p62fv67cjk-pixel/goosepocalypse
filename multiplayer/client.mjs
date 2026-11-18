@@ -32,11 +32,11 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   };
   // Apply the same bounded snapshot contract before sending as when receiving.
   const validState = (d) => !!d && typeof d === 'object' && !Array.isArray(d) &&
-    // JSON.stringify ignores inherited coordinates: require both fields on the snapshot.
-    Object.hasOwn(d, 'x') && Object.hasOwn(d, 'z') &&
+    // JSON.stringify ignores inherited and non-enumerable coordinates: require serialized fields.
+    Object.prototype.propertyIsEnumerable.call(d, 'x') && Object.prototype.propertyIsEnumerable.call(d, 'z') &&
     // Optional fields must be serialized exactly as validated. Inherited
-    // downed/health/yaw values vanish in JSON, desynchronizing revive state.
-    ['y', 'yaw', 'health', 'downed'].every(key => !(key in d) || Object.hasOwn(d, key)) &&
+    // or non-enumerable downed/health/yaw values vanish in JSON, desynchronizing revive state.
+    ['y', 'yaw', 'health', 'downed'].every(key => !(key in d) || Object.prototype.propertyIsEnumerable.call(d, key)) &&
     Number.isFinite(d.x) && Number.isFinite(d.z) &&
     Math.abs(d.x) <= 10000 && Math.abs(d.z) <= 10000 &&
     Object.keys(d).every(key => ['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key)) &&
