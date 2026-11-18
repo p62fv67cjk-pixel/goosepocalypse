@@ -116,10 +116,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
           pendingReviveRequestId = null;
         }
       } else if (packet.type === 'peer_joined') {
-        if (!room || Object.keys(packet).length !== 2 || !validId(packet.playerId) || packet.playerId === playerId || peerId) return;
+        if (!room || Object.keys(packet).length !== 2 || !Object.hasOwn(packet, 'playerId') || !validId(packet.playerId) || packet.playerId === playerId || peerId) return;
         peerId = packet.playerId;
       } else if (packet.type === 'peer_left') {
-        if (!room || Object.keys(packet).length !== 2 || !peerId || peerId !== packet.playerId) return;
+        if (!room || Object.keys(packet).length !== 2 || !Object.hasOwn(packet, 'playerId') || !peerId || peerId !== packet.playerId) return;
         peerId = null;
         pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null;
       } else if (!room && packet.type !== 'error') {
