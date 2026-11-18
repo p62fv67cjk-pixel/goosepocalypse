@@ -49,13 +49,21 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     (!Object.hasOwn(d, 'downed') || typeof d.downed === 'boolean');
   // Mirror relay action constraints locally so invalid input never consumes bandwidth.
   const validAction = (data) => !!data && typeof data === 'object' && !Array.isArray(data) &&
-    Object.keys(data).length <= 8 && Object.entries(data).every(([key, value]) =>
+    // Validate the exact serialized shape, not just values returned by getters.
+    // A toJSON hook or accessor can alter an action after validation.
+    typeof data.toJSON !== 'function' &&
+    Object.getOwnPropertySymbols(data).length === 0 &&
+    Object.keys(data).length <= 8 &&
+    Reflect.ownKeys(data).every(key => typeof key === 'string' &&
+      Object.prototype.propertyIsEnumerable.call(data, key)) &&
+    Object.entries(Object.getOwnPropertyDescriptors(data)).every(([key, descriptor]) =>
+      Object.hasOwn(descriptor, 'value') &&
       key.length <= 32 && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(key) &&
       // Identity belongs to the relay envelope, never caller-provided action data.
       !['playerId', 'peerId', 'room', 'host', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty'].some(reserved => reserved.toLowerCase() === key.toLowerCase()) &&
-      ((typeof value === 'string' && value.length <= 64) ||
-       typeof value === 'boolean' ||
-       (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 10000)));
+      ((typeof descriptor.value === 'string' && descriptor.value.length <= 64) ||
+       typeof descriptor.value === 'boolean' ||
+       (typeof descriptor.value === 'number' && Number.isFinite(descriptor.value) && Math.abs(descriptor.value) <= 10000)));
   const send = (packet) => {
     if (!socket || socket.readyState !== WebSocketImpl.OPEN) return false;
     // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
