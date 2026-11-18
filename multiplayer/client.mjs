@@ -40,10 +40,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     Number.isFinite(d.x) && Number.isFinite(d.z) &&
     Math.abs(d.x) <= 10000 && Math.abs(d.z) <= 10000 &&
     Object.keys(d).every(key => ['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key)) &&
-    (d.y === undefined || (Number.isFinite(d.y) && Math.abs(d.y) <= 10000)) &&
-    (d.yaw === undefined || (Number.isFinite(d.yaw) && Math.abs(d.yaw) <= 10000)) &&
-    (d.health === undefined || (Number.isFinite(d.health) && d.health >= 0 && d.health <= 100)) &&
-    (d.downed === undefined || typeof d.downed === 'boolean');
+    (!Object.hasOwn(d, 'y') || (Number.isFinite(d.y) && Math.abs(d.y) <= 10000)) &&
+    (!Object.hasOwn(d, 'yaw') || (Number.isFinite(d.yaw) && Math.abs(d.yaw) <= 10000)) &&
+    (!Object.hasOwn(d, 'health') || (Number.isFinite(d.health) && d.health >= 0 && d.health <= 100)) &&
+    (!Object.hasOwn(d, 'downed') || typeof d.downed === 'boolean');
   // Mirror relay action constraints locally so invalid input never consumes bandwidth.
   const validAction = (data) => !!data && typeof data === 'object' && !Array.isArray(data) &&
     Object.keys(data).length <= 8 && Object.entries(data).every(([key, value]) =>
