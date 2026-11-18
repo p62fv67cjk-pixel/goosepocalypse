@@ -44,7 +44,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     Object.keys(data).length <= 8 && Object.entries(data).every(([key, value]) =>
       key.length <= 32 && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(key) &&
       // Identity belongs to the relay envelope, never caller-provided action data.
-      !['playerId', 'peerId', 'room', 'host'].includes(key) &&
+      !['playerId', 'peerId', 'room', 'host', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty'].includes(key) &&
       ((typeof value === 'string' && value.length <= 64) ||
        typeof value === 'boolean' ||
        (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 10000)));
