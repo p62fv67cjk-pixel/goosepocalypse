@@ -34,6 +34,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   const validState = (d) => !!d && typeof d === 'object' && !Array.isArray(d) &&
     // JSON.stringify ignores inherited coordinates: require both fields on the snapshot.
     Object.hasOwn(d, 'x') && Object.hasOwn(d, 'z') &&
+    // Optional fields must be serialized exactly as validated. Inherited
+    // downed/health/yaw values vanish in JSON, desynchronizing revive state.
+    ['y', 'yaw', 'health', 'downed'].every(key => !(key in d) || Object.hasOwn(d, key)) &&
     Number.isFinite(d.x) && Number.isFinite(d.z) &&
     Math.abs(d.x) <= 10000 && Math.abs(d.z) <= 10000 &&
     Object.keys(d).every(key => ['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key)) &&
