@@ -36,6 +36,13 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     // An own or inherited toJSON hook can rewrite or erase validated fields on the wire.
     // Reject it rather than trusting a snapshot whose serialized shape can change.
     typeof d.toJSON !== 'function' &&
+    // Accessors and symbol keys can mutate a snapshot during serialization.
+    // Validate only plain, enumerable own data properties before JSON.stringify.
+    Object.getOwnPropertySymbols(d).length === 0 &&
+    Reflect.ownKeys(d).every(key => typeof key === 'string' &&
+      Object.prototype.propertyIsEnumerable.call(d, key)) &&
+    Object.values(Object.getOwnPropertyDescriptors(d)).every(descriptor =>
+      Object.hasOwn(descriptor, 'value')) &&
     Object.prototype.propertyIsEnumerable.call(d, 'x') && Object.prototype.propertyIsEnumerable.call(d, 'z') &&
     // Optional fields must be serialized exactly as validated. Inherited
     // or non-enumerable downed/health/yaw values vanish in JSON, desynchronizing revive state.
