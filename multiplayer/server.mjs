@@ -26,7 +26,8 @@ const wss = new WebSocketServer({
     // Bound idle pre-lobby sockets as well as rooms; otherwise an attacker can
     // exhaust file descriptors without ever creating a room.
     if (wss.clients.size >= MAX_CONNECTIONS) return done(false, 503, 'Server full');
-    if (origin && (ALLOWED_ORIGINS.size === 0 || !ALLOWED_ORIGINS.has(origin))) {
+    if ((process.env.NODE_ENV === 'production' && !origin) ||
+        (origin && (ALLOWED_ORIGINS.size === 0 || !ALLOWED_ORIGINS.has(origin)))) {
       done(false, 403, 'Origin not allowed');
     } else {
       done(true);
