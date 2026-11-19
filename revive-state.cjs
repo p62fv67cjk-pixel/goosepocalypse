@@ -18,7 +18,7 @@ function createReviveState(maxHealth, reviveFraction = 0.35) {
     },
     revive(authorized, expectedGeneration) {
       if (authorized !== true || !downed || expectedGeneration !== generation) return false;
-      health = Math.max(1, Math.min(maxHealth, Math.ceil(maxHealth * reviveFraction)));
+      health = Math.min(maxHealth, Math.max(Math.min(1, maxHealth), Math.ceil(maxHealth * reviveFraction)));
       downed = false;
       generation++;
       return true;
