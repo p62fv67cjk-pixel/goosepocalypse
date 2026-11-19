@@ -3,10 +3,22 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
+import { createServer } from 'node:http';
 
 const port = Number(process.env.PORT || 8787);
+// Render and other hosts need a successful HTTP health check; the relay itself
+// continues to accept game traffic exclusively through WebSocket upgrades.
+const httpServer = createServer((request, response) => {
+  if (request.method === 'GET' && request.url === '/healthz') {
+    response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    response.end('ok');
+    return;
+  }
+  response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  response.end('Not found');
+});
 const wss = new WebSocketServer({
-  port,
+  server: httpServer,
   maxPayload: 2048,
   // Reject disallowed browser origins during the HTTP upgrade, before a
   // WebSocket session is established or any game packets can be exchanged.
@@ -235,4 +247,6 @@ const heartbeat = setInterval(() => {
   }
 }, 30000);
 wss.on('close', () => clearInterval(heartbeat));
-console.log('Co-op signalling relay listening on port ' + port);
+httpServer.listen(port, () => {
+  console.log('Co-op signalling relay listening on port ' + port);
+});
