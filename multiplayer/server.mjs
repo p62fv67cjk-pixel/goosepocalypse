@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
+import { isBackpressured } from './backpressure.mjs';
 
 const port = Number(process.env.PORT || 8787);
 // Render and other hosts need a successful HTTP health check; the relay itself
@@ -67,7 +68,7 @@ const send = (ws, payload) => {
   // A stalled receiver can otherwise accumulate unbounded queued frames while
   // its teammate keeps sending at the allowed packet rate. Disconnect the slow
   // transport and let normal room cleanup notify the surviving player.
-  if (ws.bufferedAmount > 64 * 1024) {
+  if (isBackpressured(ws.bufferedAmount)) {
     try { ws.terminate(); } catch { /* already unusable */ }
     return false;
   }
