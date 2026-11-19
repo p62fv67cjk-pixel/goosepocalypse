@@ -44,3 +44,26 @@ test('invalid heals and sub-precision damage do not report false changes', () =>
  assert.equal(s.heal(Number.MIN_VALUE),false);
  assert.equal(s.snapshot().health,99);
 });
+
+test('revive acknowledgements cannot be replayed across consecutive knockdowns', () => {
+ const s=createReviveState(100);
+ assert.equal(s.damage(100),true);
+ const first=s.snapshot().generation;
+ assert.equal(s.revive(true,first),true);
+ assert.equal(s.damage(100),true);
+ const second=s.snapshot().generation;
+ assert.notEqual(first,second);
+ assert.equal(s.revive(true,first),false);
+ assert.deepEqual(s.snapshot(),{health:0,maxHealth:100,downed:true,generation:second});
+ assert.equal(s.revive(true,second),true);
+ assert.equal(s.snapshot().health,35);
+});
+test('fractional revive health remains bounded and heal cannot bypass downed state', () => {
+ const s=createReviveState(2.5,0.1);
+ assert.equal(s.damage(2.5),true);
+ assert.equal(s.heal(Number.MAX_VALUE),false);
+ assert.equal(s.revive(true,s.snapshot().generation),true);
+ assert.equal(s.snapshot().health,1);
+ assert.equal(s.heal(Number.MAX_VALUE),true);
+ assert.equal(s.snapshot().health,2.5);
+});
