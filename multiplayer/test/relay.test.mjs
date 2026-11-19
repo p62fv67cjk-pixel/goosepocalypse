@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { connect as connectTcp } from 'node:net';
+import { get as httpGet } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { WebSocket } from 'ws';
 
@@ -66,6 +67,19 @@ test('invalid room and invalid JSON cannot crash server', async () => {
   assert.equal((await missing).code, 'invalid_room');
 });
 
+
+test('HTTP health endpoint succeeds without exposing game traffic over HTTP', async () => {
+  const request = path => new Promise((resolve, reject) => {
+    httpGet({ hostname: '127.0.0.1', port, path }, response => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => { body += chunk; });
+      response.on('end', () => resolve({ status: response.statusCode, body }));
+    }).on('error', reject);
+  });
+  assert.deepEqual(await request('/healthz'), { status: 200, body: 'ok' });
+  assert.deepEqual(await request('/'), { status: 404, body: 'Not found' });
+});
 
 test('unapproved browser origins are rejected during HTTP upgrade', async () => {
   const ws = new WebSocket('ws://127.0.0.1:' + port, { origin: 'https://untrusted.example' });
