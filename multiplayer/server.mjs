@@ -43,6 +43,12 @@ const REVIVE_STATE_MAX_AGE_MS = 1500;
 // Prevent a held revive button or replayed packet from flooding a teammate.
 const REVIVE_COOLDOWN_MS = 1000;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
+// Refuse a misleading healthy production deployment that cannot accept browser players.
+// Local development and tests may run without a configured browser origin.
+if (process.env.NODE_ENV === 'production' && ALLOWED_ORIGINS.size === 0) {
+  console.error('ALLOWED_ORIGINS must specify at least one game HTTPS origin in production');
+  process.exit(1);
+}
 // Browser origins must be explicitly configured before public deployment.
 const ALLOWED = new Set(['state', 'action', 'revive']);
 const id = () => randomBytes(12).toString('hex');
