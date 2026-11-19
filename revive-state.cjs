@@ -10,10 +10,19 @@ function createReviveState(maxHealth, reviveFraction = 0.35) {
   return Object.freeze({
     snapshot: () => Object.freeze({health, maxHealth, downed, generation}),
     damage(amount) {
-      if (!Number.isFinite(amount) || amount <= 0) return false;
-      if (downed) return false;
-      health = Math.max(0, health - amount);
+      if (!Number.isFinite(amount) || amount <= 0 || downed) return false;
+      const nextHealth = Math.max(0, health - amount);
+      // A sub-precision hit must not report damage when health did not change.
+      if (nextHealth === health) return false;
+      health = nextHealth;
       if (health === 0) { downed = true; generation++; }
+      return true;
+    },
+    heal(amount) {
+      if (!Number.isFinite(amount) || amount <= 0 || downed) return false;
+      const nextHealth = Math.min(maxHealth, health + amount);
+      if (nextHealth === health) return false;
+      health = nextHealth;
       return true;
     },
     revive(authorized, expectedGeneration) {
