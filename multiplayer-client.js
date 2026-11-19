@@ -24,10 +24,11 @@ export class GooseCoopClient extends EventTarget {
     const u=new URL(this.relayUrl);u.protocol=u.protocol==='https:'?'wss:':u.protocol==='http:'?'ws:':u.protocol;
     u.pathname=`${u.pathname.replace(/\/$/,'')}/room/${encodeURIComponent(room)}`;
     const ws=this.ws=new WebSocket(u);
-    ws.addEventListener('open',()=>this.dispatchEvent(new CustomEvent('transportopen')));
-    ws.addEventListener('message',e=>this.#receive(e.data));
+    // A replaced socket can still deliver queued events. Never let it mutate the new session.
+    ws.addEventListener('open',()=>{if(this.ws===ws)this.dispatchEvent(new CustomEvent('transportopen'))});
+    ws.addEventListener('message',e=>{if(this.ws===ws)this.#receive(e.data)});
     ws.addEventListener('close',e=>{if(this.ws!==ws)return;this.connected=false;this.slot=null;this.dispatchEvent(new CustomEvent('disconnect',{detail:{code:e.code,reason:e.reason}}))});
-    ws.addEventListener('error',()=>this.dispatchEvent(new CustomEvent('transporterror')));
+    ws.addEventListener('error',()=>{if(this.ws===ws)this.dispatchEvent(new CustomEvent('transporterror'))});
     return ws;
   }
   #receive(raw){
