@@ -64,6 +64,13 @@ const ALLOWED = new Set(['state', 'action', 'revive']);
 const id = () => randomBytes(12).toString('hex');
 const send = (ws, payload) => {
   if (ws.readyState !== WebSocket.OPEN) return false;
+  // A stalled receiver can otherwise accumulate unbounded queued frames while
+  // its teammate keeps sending at the allowed packet rate. Disconnect the slow
+  // transport and let normal room cleanup notify the surviving player.
+  if (ws.bufferedAmount > 64 * 1024) {
+    try { ws.terminate(); } catch { /* already unusable */ }
+    return false;
+  }
   // A socket can close between the readyState check and send. Never let a
   // single failed teammate transport crash the shared room relay process.
   try {
