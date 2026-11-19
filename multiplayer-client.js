@@ -39,9 +39,17 @@ export class GooseCoopClient extends EventTarget {
     this.dispatchEvent(new CustomEvent('message',{detail:m}));
   }
   #send(type,payload={}){
-    if(!this.ws||this.ws.readyState!==WebSocket.OPEN)return false;
-    const seq=this.seq[type]??0;this.seq[type]=seq+1;
-    this.ws.send(JSON.stringify({t:type,seq,...payload}));return true;
+    const ws=this.ws;
+    if(!ws||ws.readyState!==WebSocket.OPEN)return false;
+    const seq=this.seq[type]??0;
+    try {
+      ws.send(JSON.stringify({t:type,seq,...payload}));
+    } catch {
+      // Safari may close a socket between readyState and send; callers can retry.
+      return false;
+    }
+    this.seq[type]=seq+1;
+    return true;
   }
   input({moveX=0,moveY=0,yaw=0,pitch=0,sprint=false,fire=false}={}){return this.#send('input',{move:[moveX,moveY],yaw,pitch,sprint,fire})}
   state(x,z){return this.#send('state',{x,z})}
