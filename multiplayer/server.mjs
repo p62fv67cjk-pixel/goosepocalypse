@@ -45,8 +45,17 @@ const REVIVE_COOLDOWN_MS = 1000;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
 // Refuse a misleading healthy production deployment that cannot accept browser players.
 // Local development and tests may run without a configured browser origin.
-if (process.env.NODE_ENV === 'production' && ALLOWED_ORIGINS.size === 0) {
-  console.error('ALLOWED_ORIGINS must specify at least one game HTTPS origin in production');
+if (process.env.NODE_ENV === 'production' &&
+    (ALLOWED_ORIGINS.size === 0 || [...ALLOWED_ORIGINS].some(origin => {
+      try {
+        const parsed = new URL(origin);
+        // Reject insecure, wildcard, credential-bearing and path-scoped origins.
+        // The Origin header contains only a scheme, host and optional port.
+        return parsed.protocol !== 'https:' || parsed.origin !== origin ||
+          parsed.username || parsed.password || parsed.hostname.includes('*');
+      } catch { return true; }
+    }))) {
+  console.error('ALLOWED_ORIGINS must contain only exact HTTPS game origins in production');
   process.exit(1);
 }
 // Browser origins must be explicitly configured before public deployment.
