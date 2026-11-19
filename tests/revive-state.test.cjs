@@ -15,3 +15,11 @@ test('invalid inputs cannot heal or corrupt health', () => {
  assert.throws(()=>createReviveState(0),RangeError);assert.throws(()=>createReviveState(100,2),RangeError);
  const s=createReviveState(100);for(const n of [NaN,Infinity,-1,0])assert.equal(s.damage(n),false);assert.equal(s.snapshot().health,100);
 });
+
+test('revive never exceeds fractional maximum health', () => {
+ const s = createReviveState(0.5);
+ assert.equal(s.damage(0.5), true);
+ assert.equal(s.revive(true, 1), true);
+ assert.equal(s.snapshot().health, 0.5);
+ assert.equal(s.snapshot().downed, false);
+});
