@@ -24,5 +24,5 @@ test('production relay refuses to start without an allowed browser origin', asyn
   });
   assert.equal(result.code, 1);
   assert.equal(result.signal, null);
-  assert.match(stderr, /ALLOWED_ORIGINS must specify/);
+  assert.match(stderr, /ALLOWED_ORIGINS must contain only exact HTTPS game origins in production/);
 });
