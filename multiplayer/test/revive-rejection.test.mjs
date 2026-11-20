@@ -5,7 +5,7 @@ import { createCoopClient } from '../client.mjs';
 class Socket {
   static OPEN = 1;
   static latest;
-  constructor() { this.readyState = 0; this.listeners = {}; this.sent = []; Socket.latest = this; }
+  constructor() { this.readyState = 0; this.bufferedAmount = 0; this.listeners = {}; this.sent = []; Socket.latest = this; }
   addEventListener(type, cb) { (this.listeners[type] ||= []).push(cb); }
   fire(type, payload = {}) { for (const cb of this.listeners[type] || []) cb(payload); }
   send(raw) { this.sent.push(JSON.parse(raw)); }
