@@ -75,10 +75,12 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     if (!socket || socket.readyState !== WebSocketImpl.OPEN) return false;
     // Safari may report OPEN while cellular connectivity stalls. Do not queue
     // unbounded state/action packets into a socket that cannot drain.
-    if (typeof socket.bufferedAmount === 'number' &&
-        (!Number.isFinite(socket.bufferedAmount) || socket.bufferedAmount > 65536)) return false;
-    // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
+    // A browser shim or interrupted mobile socket may throw when reading
+    // bufferedAmount. Keep the entire queue inspection inside the send guard.
     try {
+      if (typeof socket.bufferedAmount === 'number' &&
+          (!Number.isFinite(socket.bufferedAmount) || socket.bufferedAmount > 65536)) return false;
+      // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
       const encoded = JSON.stringify(packet);
       // Relay enforces bytes, not UTF-16 code units (emoji/non-ASCII can exceed the limit).
       if (!encoded) return false;
