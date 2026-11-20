@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCoopClient } from '../client.mjs';
 
-test('movement recovers from a backwards clock without flooding the relay', () => {
+test('movement clock rollback fails closed until the original 100 ms budget expires', () => {
   let clock = 1000;
   let ws;
   class FakeSocket {
@@ -20,11 +20,14 @@ test('movement recovers from a backwards clock without flooding the relay', () =
   const state = { x: 1, z: 2 };
   assert.equal(client.sendState(state), true);
   clock = 500;
-  assert.equal(client.sendState(state), true, 'rollback permits a fresh position');
+  for (let frame = 0; frame < 120; frame++)
+    assert.equal(client.sendState(state), false, 'rollback or frozen clock must not flood relay');
+  clock = 1099;
+  assert.equal(client.sendState(state), false, 'original interval still applies');
+  clock = 1100;
+  assert.equal(client.sendState(state), true, 'movement resumes at original 100 ms boundary');
   assert.equal(client.sendState(state), false, 'same-frame repeat stays throttled');
-  clock = 599;
-  assert.equal(client.sendState(state), false);
-  clock = 600;
+  clock = 1200;
   assert.equal(client.sendState(state), true);
   assert.equal(ws.sent.filter(packet => packet.type === 'state').length, 3);
   client.disconnect();
