@@ -5,7 +5,7 @@ import { createCoopClient } from '../client.mjs';
 class FakeSocket {
   static OPEN = 1;
   static last;
-  constructor() { FakeSocket.last = this; this.readyState = 0; this.sent = []; this.listeners = new Map(); }
+  constructor() { FakeSocket.last = this; this.readyState = 0; this.bufferedAmount = 0; this.sent = []; this.listeners = new Map(); }
   addEventListener(type, callback) { this.listeners.set(type, callback); }
   open() { this.readyState = 1; this.listeners.get('open')?.(); }
   send(payload) { this.sent.push(JSON.parse(payload)); }
