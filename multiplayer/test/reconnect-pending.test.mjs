@@ -6,7 +6,7 @@ class FakeSocket {
   static OPEN = 1;
   static sockets = [];
   constructor() {
-    this.readyState = 0;
+    this.readyState = 0; this.bufferedAmount = 0;
     this.listeners = new Map();
     this.sent = [];
     FakeSocket.sockets.push(this);
