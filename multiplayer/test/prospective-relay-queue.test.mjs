@@ -18,3 +18,14 @@ test('relay queue guard rejects invalid amounts and accepts empty queue', () => 
   assert.equal(wouldExceedQueue(0, Infinity), true);
   assert.equal(wouldExceedQueue(0, -1), true);
 });
+
+test('relay rejects malformed transport byte counters rather than trusting them', () => {
+  for (const amount of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(wouldExceedQueue(amount, 1), true);
+  }
+  for (const bytes of [0.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(wouldExceedQueue(0, bytes), true);
+  }
+  assert.equal(wouldExceedQueue(MAX_QUEUED_BYTES - 1, 1), false);
+  assert.equal(wouldExceedQueue(MAX_QUEUED_BYTES - 1, 2), true);
+});
