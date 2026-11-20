@@ -7,7 +7,7 @@ test('movement clock rollback fails closed until the original 100 ms budget expi
   let ws;
   class FakeSocket {
     static OPEN = 1;
-    constructor() { this.readyState = 1; this.handlers = new Map(); this.sent = []; ws = this; }
+    constructor() { this.readyState = 1; this.bufferedAmount = 0; this.handlers = new Map(); this.sent = []; ws = this; }
     addEventListener(type, fn) { this.handlers.set(type, fn); }
     send(data) { this.sent.push(JSON.parse(data)); }
     close() { this.readyState = 3; }
