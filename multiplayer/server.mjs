@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
-import { isBackpressured } from './backpressure.mjs';
+import { wouldExceedQueue } from './backpressure.mjs';
 
 const port = Number(process.env.PORT || 8787);
 // Render and other hosts need a successful HTTP health check; the relay itself
@@ -75,8 +75,7 @@ const send = (ws, payload) => {
   try {
     encoded = JSON.stringify(payload);
     const bytes = Buffer.byteLength(encoded, 'utf8');
-    if (isBackpressured(ws.bufferedAmount) || bytes > 65536 ||
-        ws.bufferedAmount + bytes > 65536) {
+    if (wouldExceedQueue(ws.bufferedAmount, bytes)) {
       try { ws.terminate(); } catch { /* already unusable */ }
       return false;
     }
