@@ -73,6 +73,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
        (typeof descriptor.value === 'number' && Number.isFinite(descriptor.value) && Math.abs(descriptor.value) <= 10000)));
   const send = (packet) => {
     if (!socket || socket.readyState !== WebSocketImpl.OPEN) return false;
+    // Safari may report OPEN while cellular connectivity stalls. Do not queue
+    // unbounded state/action packets into a socket that cannot drain.
+    if (typeof socket.bufferedAmount === 'number' &&
+        (!Number.isFinite(socket.bufferedAmount) || socket.bufferedAmount > 65536)) return false;
     // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
     try {
       const encoded = JSON.stringify(packet);
