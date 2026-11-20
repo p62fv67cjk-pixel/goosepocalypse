@@ -5,7 +5,7 @@ import { createCoopClient } from '../client.mjs';
 class Socket {
   static OPEN = 1;
   static latest;
-  constructor() { this.readyState = 0; this.handlers = new Map(); Socket.latest = this; }
+  constructor() { this.readyState = 0; this.bufferedAmount = 0; this.handlers = new Map(); Socket.latest = this; }
   addEventListener(type, handler) { this.handlers.set(type, [...(this.handlers.get(type) || []), handler]); }
   fire(type, payload = {}) { for (const handler of this.handlers.get(type) || []) handler(payload); }
   send() {}
