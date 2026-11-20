@@ -78,8 +78,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     // A browser shim or interrupted mobile socket may throw when reading
     // bufferedAmount. Keep the entire queue inspection inside the send guard.
     try {
-      if (typeof socket.bufferedAmount === 'number' &&
-          (!Number.isFinite(socket.bufferedAmount) || socket.bufferedAmount > 65536)) return false;
+      // Read once: mobile transport shims can expose a changing getter.
+      // A missing or malformed byte count must not bypass backpressure.
+      const queuedBytes = socket.bufferedAmount;
+      if (!Number.isSafeInteger(queuedBytes) || queuedBytes < 0 || queuedBytes > 65536) return false;
       // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
       const encoded = JSON.stringify(packet);
       // Relay enforces bytes, not UTF-16 code units (emoji/non-ASCII can exceed the limit).
@@ -88,7 +90,7 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       if (bytes > 2048) return false;
       // Check the *prospective* queue size, not only the existing backlog.
       // Otherwise each send can push an iPhone's stalled socket beyond the cap.
-      if (typeof socket.bufferedAmount === 'number' && socket.bufferedAmount + bytes > 65536) return false;
+      if (bytes > 65536 - queuedBytes) return false;
       socket.send(encoded);
       return true;
     } catch {
