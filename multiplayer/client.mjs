@@ -81,7 +81,12 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
     try {
       const encoded = JSON.stringify(packet);
       // Relay enforces bytes, not UTF-16 code units (emoji/non-ASCII can exceed the limit).
-      if (!encoded || new TextEncoder().encode(encoded).byteLength > 2048) return false;
+      if (!encoded) return false;
+      const bytes = new TextEncoder().encode(encoded).byteLength;
+      if (bytes > 2048) return false;
+      // Check the *prospective* queue size, not only the existing backlog.
+      // Otherwise each send can push an iPhone's stalled socket beyond the cap.
+      if (typeof socket.bufferedAmount === 'number' && socket.bufferedAmount + bytes > 65536) return false;
       socket.send(encoded);
       return true;
     } catch {
