@@ -253,11 +253,10 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
       let timestamp;
       try { timestamp = now(); } catch { return false; }
       if (!Number.isFinite(timestamp)) return false;
-      // A backwards clock adjustment should not strand multiplayer movement for
-      // minutes. Reset the throttle on rollback, permitting one immediate state;
-      // subsequent frames remain capped at 10 Hz. A frozen clock stays throttled.
-      if (lastStateSentAt !== -Infinity && timestamp < lastStateSentAt)
-        lastStateSentAt = -Infinity;
+      // A clock rollback must not reset the send budget on every frame:
+      // doing so floods the relay and can disconnect an iPhone client.
+      // Wait until the clock reaches the prior send time plus the interval.
+      // The default performance.now() clock is monotonic on supported browsers.
       if (lastStateSentAt !== -Infinity && timestamp - lastStateSentAt < STATE_INTERVAL_MS)
         return false;
       if (!send({ type: 'state', data })) return false;
