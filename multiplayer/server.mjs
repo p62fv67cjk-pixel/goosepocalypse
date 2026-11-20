@@ -68,14 +68,26 @@ const send = (ws, payload) => {
   // A stalled receiver can otherwise accumulate unbounded queued frames while
   // its teammate keeps sending at the allowed packet rate. Disconnect the slow
   // transport and let normal room cleanup notify the surviving player.
-  if (isBackpressured(ws.bufferedAmount)) {
+  // Bound the *prospective* queue as well as the existing backlog. Otherwise
+  // a near-full socket can exceed the cap with one more forwarded packet.
+  // Read bufferedAmount inside the guard: a broken transport shim may throw.
+  let encoded;
+  try {
+    encoded = JSON.stringify(payload);
+    const bytes = Buffer.byteLength(encoded, 'utf8');
+    if (isBackpressured(ws.bufferedAmount) || bytes > 65536 ||
+        ws.bufferedAmount + bytes > 65536) {
+      try { ws.terminate(); } catch { /* already unusable */ }
+      return false;
+    }
+  } catch {
     try { ws.terminate(); } catch { /* already unusable */ }
     return false;
   }
   // A socket can close between the readyState check and send. Never let a
   // single failed teammate transport crash the shared room relay process.
   try {
-    ws.send(JSON.stringify(payload), (error) => {
+    ws.send(encoded, (error) => {
       // ws may report an asynchronous write failure after send() returns.
       // Evict that transport so it cannot occupy a room slot indefinitely.
       if (error) {
