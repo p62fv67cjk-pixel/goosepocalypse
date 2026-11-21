@@ -1,0 +1,27 @@
+name: Co-op relay integration
+on:
+  pull_request:
+    paths:
+      - 'multiplayer/**'
+      - '.github/workflows/coop-relay.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'multiplayer/**'
+      - '.github/workflows/coop-relay.yml'
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: multiplayer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      # A leaked WebSocket handle or relay child must fail visibly instead of
+      # leaving the PR's only co-op gate in progress indefinitely.
+      - run: timeout --signal=TERM --kill-after=10s 180s npm test
