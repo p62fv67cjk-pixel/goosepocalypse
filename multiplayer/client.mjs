@@ -99,7 +99,9 @@ export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, on
   };
   function connect() {
     if (socket) throw new Error('Already connected; disconnect first');
-    // Use the exact endpoint that passed validation. A caller-provided URL-like\n    // object can change its string representation between validation and connect.\n    const ws = new WebSocketImpl(endpoint.href);
+    // Use the exact endpoint that passed validation. A caller-provided URL-like 
+    // object can change its string representation between validation and connect.
+    const ws = new WebSocketImpl(endpoint.href);
     socket = ws;
     const current = ++generation;
     ws.addEventListener('open', () => {
