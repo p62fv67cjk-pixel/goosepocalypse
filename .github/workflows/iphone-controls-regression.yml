@@ -1,0 +1,26 @@
+name: iPhone control lifecycle regression
+on:
+  pull_request:
+    paths:
+      - 'controls-fixes.js'
+      - 'tests/controls-lifecycle.test.cjs'
+      - '.github/workflows/iphone-controls-regression.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'controls-fixes.js'
+      - 'tests/controls-lifecycle.test.cjs'
+      - '.github/workflows/iphone-controls-regression.yml'
+permissions:
+  contents: read
+jobs:
+  pointer-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test pointer lifecycle against checked-out controls
+        run: node --test tests/controls-lifecycle.test.cjs
