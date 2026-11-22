@@ -44,7 +44,13 @@ test('orientation releases owned controls',()=>{
   for(const el of [move,sprint,canvas])assert.equal(el.events.filter(e=>e.type==='pointerup').length,1);
 });
 test('owned sprint pointerleave does not end sprint',()=>{
-  const {sprint,send}=fixture();send(sprint,'pointerdown',9);
-  send(sprint,'pointerleave',9);assert.equal(sprint.events.at(-1).stopped,true);
+  const {sprint,doc,send}=fixture();send(sprint,'pointerdown',9);
+  // The production listener is capture-phase on document, not on the button.
+  // Model the event at its document capture point while retaining the button target.
+  const leave=new PointerEventMock('pointerleave',{pointerId:9});
+  leave.target=sprint;
+  leave.stopImmediatePropagation=()=>{leave.stopped=true};
+  for(const {fn} of doc.handlers.get('pointerleave')||[])fn(leave);
+  assert.equal(leave.stopped,true);
   send(sprint,'pointerup',9);assert.equal(sprint.events.at(-1).stopped,undefined);
 });
