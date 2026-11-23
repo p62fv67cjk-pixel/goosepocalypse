@@ -41,3 +41,16 @@ test('Safari send race returns false without consuming sequence number',()=>{
   assert.equal(client.state(5,6),true);
   assert.equal(ws.sent[1].seq,1);
 });
+
+test('new room connection resets all packet sequence counters',()=>{
+  const client=new GooseCoopClient('https://example.org');
+  let ws=client.connect(room);ws.readyState=FakeSocket.OPEN;
+  assert.equal(client.state(1,2),true);
+  assert.equal(client.state(2,3),true);
+  assert.equal(client.damage(5),true);
+  assert.deepEqual(ws.sent.map(packet=>packet.seq),[0,1,0]);
+  ws=client.connect('qrstuvwxyzABCDEF');ws.readyState=FakeSocket.OPEN;
+  assert.equal(client.state(4,5),true);
+  assert.equal(client.damage(6),true);
+  assert.deepEqual(ws.sent.map(packet=>packet.seq),[0,0]);
+});
