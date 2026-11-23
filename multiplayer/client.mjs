@@ -1,0 +1,306 @@
+// Browser-side transport only. No fake local multiplayer or health authority.
+export function createCoopClient({ url, WebSocketImpl = globalThis.WebSocket, onEvent = () => {}, now = () => (typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now()), cryptoImpl = globalThis.crypto }) {
+  // Parse the endpoint, not just its prefix. Never send room traffic or browser
+  // credentials to a malformed URL or a credential-bearing WebSocket address.
+  let endpoint;
+  try { endpoint = new URL(url); } catch { throw new Error('Public multiplayer requires a valid wss:// endpoint'); }
+  if (endpoint.protocol !== 'wss:' || !endpoint.hostname || endpoint.username || endpoint.password || endpoint.hash || endpoint.search)
+    throw new Error('Public multiplayer requires a valid credential-free wss:// endpoint');
+  if (typeof WebSocketImpl !== 'function') throw new Error('WebSocket unavailable');
+  let socket = null;
+  let generation = 0;
+  let room = null;
+  let playerId = null;
+  let peerId = null;
+  let isHost = false;
+  let roomRequestPending = false;
+  let requestedRoom = null;
+  let pendingKind = null;
+  let pendingReviveTarget = null;
+  let pendingReviveAt = null;
+  let pendingReviveRequestId = null;
+  // Prefer Safari's monotonic performance clock over wall time, which can jump during play.
+  let lastStateSentAt = -Infinity;
+  // A 60fps render loop must not trip the relay's 30-message/second disconnect limit.
+  const STATE_INTERVAL_MS = 100;
+  const validId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/.test(value);
+  // User-provided UI callbacks are outside the transport's control. A rendering
+  // exception must not abort WebSocket message handling or strand room cleanup.
+  const emit = (type, data = {}) => {
+    try { onEvent({ type, ...data }); }
+    catch { /* Keep network state and disconnect cleanup independent of UI errors. */ }
+  };
+  // Apply the same bounded snapshot contract before sending as when receiving.
+  const validState = (d) => !!d && typeof d === 'object' && !Array.isArray(d) &&
+    // JSON.stringify ignores inherited and non-enumerable coordinates: require serialized fields.
+    // An own or inherited toJSON hook can rewrite or erase validated fields on the wire.
+    // Reject it rather than trusting a snapshot whose serialized shape can change.
+    typeof d.toJSON !== 'function' &&
+    // Accessors and symbol keys can mutate a snapshot during serialization.
+    // Validate only plain, enumerable own data properties before JSON.stringify.
+    Object.getOwnPropertySymbols(d).length === 0 &&
+    Reflect.ownKeys(d).every(key => typeof key === 'string' &&
+      Object.prototype.propertyIsEnumerable.call(d, key)) &&
+    Object.values(Object.getOwnPropertyDescriptors(d)).every(descriptor =>
+      Object.hasOwn(descriptor, 'value')) &&
+    Object.prototype.propertyIsEnumerable.call(d, 'x') && Object.prototype.propertyIsEnumerable.call(d, 'z') &&
+    // Optional fields must be serialized exactly as validated. Inherited
+    // or non-enumerable downed/health/yaw values vanish in JSON, desynchronizing revive state.
+    ['y', 'yaw', 'health', 'downed'].every(key => !(key in d) || Object.prototype.propertyIsEnumerable.call(d, key)) &&
+    Number.isFinite(d.x) && Number.isFinite(d.z) &&
+    Math.abs(d.x) <= 10000 && Math.abs(d.z) <= 10000 &&
+    Object.keys(d).every(key => ['x', 'y', 'z', 'yaw', 'health', 'downed'].includes(key)) &&
+    (!Object.hasOwn(d, 'y') || (Number.isFinite(d.y) && Math.abs(d.y) <= 10000)) &&
+    (!Object.hasOwn(d, 'yaw') || (Number.isFinite(d.yaw) && Math.abs(d.yaw) <= 10000)) &&
+    (!Object.hasOwn(d, 'health') || (Number.isFinite(d.health) && d.health >= 0 && d.health <= 100)) &&
+    (!Object.hasOwn(d, 'downed') || typeof d.downed === 'boolean');
+  // Mirror relay action constraints locally so invalid input never consumes bandwidth.
+  const validAction = (data) => !!data && typeof data === 'object' && !Array.isArray(data) &&
+    // Validate the exact serialized shape, not just values returned by getters.
+    // A toJSON hook or accessor can alter an action after validation.
+    typeof data.toJSON !== 'function' &&
+    Object.getOwnPropertySymbols(data).length === 0 &&
+    Object.keys(data).length <= 8 &&
+    Reflect.ownKeys(data).every(key => typeof key === 'string' &&
+      Object.prototype.propertyIsEnumerable.call(data, key)) &&
+    Object.entries(Object.getOwnPropertyDescriptors(data)).every(([key, descriptor]) =>
+      Object.hasOwn(descriptor, 'value') &&
+      key.length <= 32 && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(key) &&
+      // Identity belongs to the relay envelope, never caller-provided action data.
+      !['playerId', 'peerId', 'room', 'host', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty'].some(reserved => reserved.toLowerCase() === key.toLowerCase()) &&
+      ((typeof descriptor.value === 'string' && descriptor.value.length <= 64) ||
+       typeof descriptor.value === 'boolean' ||
+       (typeof descriptor.value === 'number' && Number.isFinite(descriptor.value) && Math.abs(descriptor.value) <= 10000)));
+  const send = (packet) => {
+    if (!socket || socket.readyState !== WebSocketImpl.OPEN) return false;
+    // Safari may report OPEN while cellular connectivity stalls. Do not queue
+    // unbounded state/action packets into a socket that cannot drain.
+    // A browser shim or interrupted mobile socket may throw when reading
+    // bufferedAmount. Keep the entire queue inspection inside the send guard.
+    try {
+      // Read once: mobile transport shims can expose a changing getter.
+      // A missing or malformed byte count must not bypass backpressure.
+      const queuedBytes = socket.bufferedAmount;
+      if (!Number.isSafeInteger(queuedBytes) || queuedBytes < 0 || queuedBytes > 65536) return false;
+      // Avoid crashing the render loop on cyclic data, oversized snapshots or a closing socket.
+      const encoded = JSON.stringify(packet);
+      // Relay enforces bytes, not UTF-16 code units (emoji/non-ASCII can exceed the limit).
+      if (!encoded) return false;
+      const bytes = new TextEncoder().encode(encoded).byteLength;
+      if (bytes > 2048) return false;
+      // Check the *prospective* queue size, not only the existing backlog.
+      // Otherwise each send can push an iPhone's stalled socket beyond the cap.
+      if (bytes > 65536 - queuedBytes) return false;
+      socket.send(encoded);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  function connect() {
+    if (socket) throw new Error('Already connected; disconnect first');
+    // Use the exact endpoint that passed validation. A caller-provided URL-like 
+    // object can change its string representation between validation and connect.
+    const ws = new WebSocketImpl(endpoint.href);
+    socket = ws;
+    const current = ++generation;
+    ws.addEventListener('open', () => {
+      if (current === generation) emit('connected');
+    });
+    ws.addEventListener('message', ({ data }) => {
+      if (current !== generation || typeof data !== 'string' || new TextEncoder().encode(data).byteLength > 4096) return;
+      let packet;
+      try { packet = JSON.parse(data); } catch { return; }
+      if (!packet || typeof packet !== 'object' || Array.isArray(packet) || typeof packet.type !== 'string') return;
+      // Only documented relay events may reach game UI handlers.
+      if (!['joined', 'peer_joined', 'peer_left', 'state', 'action', 'revive',
+        'revive_accepted', 'host_changed', 'error'].includes(packet.type)) return;
+      if (packet.type === 'joined') {
+        if (room || !roomRequestPending || ![4, 5].includes(Object.keys(packet).length) ||
+            !Object.hasOwn(packet, 'host') ||
+            (pendingKind === 'create' && Object.hasOwn(packet, 'peerId')) ||
+            (pendingKind === 'join' && !Object.hasOwn(packet, 'peerId')) ||
+            !Object.keys(packet).every(key => ['type', 'room', 'playerId', 'host', 'peerId'].includes(key)) ||
+            (Object.hasOwn(packet, 'host') && typeof packet.host !== 'boolean') ||
+            (Object.hasOwn(packet, 'host') && ((pendingKind === 'create' && packet.host !== true) ||
+              (pendingKind === 'join' && packet.host !== false))) ||
+            (Object.hasOwn(packet, 'peerId') && packet.peerId == null) ||
+            (requestedRoom && packet.room !== requestedRoom) || !validId(packet.room) || !validId(packet.playerId) ||
+            (packet.peerId != null && (!validId(packet.peerId) || packet.peerId === packet.playerId))) return;
+        lastStateSentAt = -Infinity;
+        roomRequestPending = false;
+        requestedRoom = null;
+        pendingKind = null;
+        room = packet.room;
+        playerId = packet.playerId;
+        peerId = packet.peerId || null;
+        isHost = packet.host;
+        pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null;
+      } else if (packet.type === 'error') {
+        // Relay errors are fixed control envelopes, not arbitrary game data.
+        // Reject malformed or extended packets before they can change lobby or revive state.
+        if (Object.keys(packet).length !== 2 || !Object.hasOwn(packet, 'code') ||
+            typeof packet.code !== 'string' || !/^[a-z_]{1,48}$/.test(packet.code)) return;
+        // The relay rejects invalid/full room requests without closing the socket.
+        // Permit a corrected request instead of leaving the lobby stuck.
+        // Only a lobby rejection can release a pending create/join request.
+        // Gameplay errors or malformed packets must not unlock duplicate requests.
+        if (roomRequestPending && ((pendingKind === 'create' && packet.code === 'server_full') || (pendingKind === 'join' && ['invalid_room', 'room_not_found', 'room_full'].includes(packet.code)))) { roomRequestPending = false; requestedRoom = null; pendingKind = null; }
+        // A rejected revive cannot later be confirmed by a delayed or forged acknowledgement.
+        // Clear only revive-specific errors; unrelated gameplay errors must not cancel it.
+        if (['invalid_revive_target', 'revive_cooldown', 'revive_not_allowed', 'revive_delivery_failed'].includes(packet.code)) {
+          pendingReviveTarget = null;
+          pendingReviveAt = null;
+          pendingReviveRequestId = null;
+        }
+      } else if (packet.type === 'peer_joined') {
+        if (!room || Object.keys(packet).length !== 2 || !Object.hasOwn(packet, 'playerId') || !validId(packet.playerId) || packet.playerId === playerId || peerId) return;
+        peerId = packet.playerId;
+      } else if (packet.type === 'peer_left') {
+        if (!room || Object.keys(packet).length !== 2 || !Object.hasOwn(packet, 'playerId') || !peerId || peerId !== packet.playerId) return;
+        peerId = null;
+        pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null;
+      } else if (!room && packet.type !== 'error') {
+        // Do not expose gameplay packets before room membership is established.
+        return;
+      } else if (['state', 'action', 'revive'].includes(packet.type) &&
+          (!peerId || packet.playerId !== peerId)) {
+        // Only the currently announced teammate may produce gameplay events.
+        // A departed or replaced peer must not drive the renderer or revive UI.
+        return;
+      }
+      // Treat network snapshots as untrusted even when the relay is expected to validate.
+      // Never hand malformed positions or nested data to Three.js gameplay handlers.
+      if (packet.type === 'state' || packet.type === 'action') {
+        // Relay gameplay envelopes have exactly three fields. Reject injected
+        // metadata before it reaches a future renderer or action handler.
+        if (Object.keys(packet).length !== 3 ||
+            !Object.keys(packet).every(key => ['type', 'playerId', 'data'].includes(key))) return;
+        if (packet.type === 'state' && !validState(packet.data)) return;
+        if (packet.type === 'action' && !validAction(packet.data)) return;
+      }
+      // Control acknowledgements are also untrusted. Never show a rescue for
+      // an unrelated target, or a host transition for another player.
+      if (packet.type === 'revive_accepted') {
+        // Only the relay's documented acknowledgement shape is accepted.
+        // Extra fields must never be interpreted as future gameplay authority.
+        if (![2, 3].includes(Object.keys(packet).length) || !Object.hasOwn(packet, 'targetId') ||
+            !Object.keys(packet).every(key => ['type', 'targetId', 'requestId'].includes(key)) ||
+            (Object.hasOwn(packet, 'requestId') && !validId(packet.requestId)) ||
+            (pendingReviveRequestId !== null && packet.requestId !== pendingReviveRequestId) ||
+            (pendingReviveRequestId === null && Object.hasOwn(packet, 'requestId'))) return;
+        // An acknowledgement arriving after the retry window is stale. Without
+        // per-attempt IDs, it must not report a successful current rescue.
+        let timestamp;
+        try { timestamp = now(); } catch { return; }
+        if (!Number.isFinite(timestamp) || pendingReviveAt === null ||
+            timestamp < pendingReviveAt || timestamp - pendingReviveAt >= 5000 ||
+            !peerId || packet.targetId !== peerId || pendingReviveTarget !== peerId) return;
+      }
+      if (packet.type === 'revive_accepted') { pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null; }
+      if (packet.type === 'host_changed') {
+        if (Object.keys(packet).length !== 2 || packet.playerId !== playerId || !validId(packet.playerId)) return;
+        isHost = true;
+      }
+      if (packet.type === 'revive' &&
+          (Object.keys(packet).length !== 3 ||
+           !Object.keys(packet).every(key => ['type', 'playerId', 'data'].includes(key)) ||
+           !packet.data || typeof packet.data !== 'object' || Array.isArray(packet.data) ||
+           !Object.keys(packet.data).every(key => ['targetId', 'requestId'].includes(key)) ||
+           Object.keys(packet.data).length !== (Object.hasOwn(packet.data, 'requestId') ? 2 : 1) ||
+           (Object.hasOwn(packet.data, 'requestId') && !validId(packet.data.requestId)) ||
+           packet.data.targetId !== playerId)) return;
+      emit('packet', { packet });
+    });
+    ws.addEventListener('close', () => {
+      if (current !== generation) return;
+      socket = null; room = null; playerId = null; peerId = null; isHost = false; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null; lastStateSentAt = -Infinity;
+      emit('disconnected');
+    });
+    ws.addEventListener('error', () => {
+      if (current === generation) emit('connection_error');
+    });
+  }
+  function disconnect() {
+    ++generation;
+    const old = socket;
+    socket = null; room = null; playerId = null; peerId = null; isHost = false; roomRequestPending = false; requestedRoom = null; pendingKind = null; pendingReviveTarget = null; pendingReviveAt = null; pendingReviveRequestId = null; lastStateSentAt = -Infinity;
+    if (old) {
+      // A browser/WebSocket shim can throw during close. Local teardown is
+      // already complete, so do not let that exception break the game UI.
+      try { old.close(); } catch { /* local state is already disconnected */ }
+      emit('disconnected');
+    }
+  }
+  const api = {
+    connect, disconnect,
+    // Room membership is single-use per connection. A second create/join request
+    // after joining would be rejected by the relay and confuse the game UI.
+    createRoom: () => {
+      if (room || roomRequestPending || !send({ type: 'create' })) return false;
+      roomRequestPending = true;
+      pendingKind = 'create';
+      requestedRoom = null;
+      return true;
+    },
+    joinRoom: (code) => {
+      if (room || roomRequestPending || typeof code !== 'string' || !/^[a-f0-9]{24}$/.test(code) || !send({ type: 'join', room: code })) return false;
+      roomRequestPending = true;
+      pendingKind = 'join';
+      requestedRoom = code;
+      return true;
+    },
+    sendState: (data) => {
+      // Caller-owned objects can contain throwing getters or proxies. Never crash the render loop.
+      try { if (!room || !validState(data)) return false; } catch { return false; }
+      // A broken clock provider must not throw through the iPhone render loop.
+      let timestamp;
+      try { timestamp = now(); } catch { return false; }
+      if (!Number.isFinite(timestamp)) return false;
+      // A clock rollback must not reset the send budget on every frame:
+      // doing so floods the relay and can disconnect an iPhone client.
+      // Wait until the clock reaches the prior send time plus the interval.
+      // The default performance.now() clock is monotonic on supported browsers.
+      if (lastStateSentAt !== -Infinity && timestamp - lastStateSentAt < STATE_INTERVAL_MS)
+        return false;
+      if (!send({ type: 'state', data })) return false;
+      lastStateSentAt = timestamp;
+      return true;
+    },
+    sendAction: (data) => {
+      try { return !!room && validAction(data) && send({ type: 'action', data }); }
+      catch { return false; }
+    },
+    revive: (targetId, requestId = null) => {
+      // Lost relay responses must not permanently disable the revive button.
+      // Expire the outstanding request after five seconds; the relay still
+      // enforces proximity, downed state and its own cooldown on every retry.
+      let timestamp;
+      try { timestamp = now(); } catch { return false; }
+      if (!Number.isFinite(timestamp)) return false;
+      // A backwards wall-clock jump must not bypass the in-flight revive guard.
+      // Clear the request only after a full, forward-moving timeout.
+      if (pendingReviveTarget && pendingReviveAt !== null &&
+          (timestamp < pendingReviveAt || timestamp - pendingReviveAt < 5000)) return false;
+      if (requestId !== null && !validId(requestId)) return false;
+      if (!room || !validId(targetId) || targetId !== peerId ||
+          !send({ type: 'revive', data: requestId === null ? { targetId } : { targetId, requestId } })) return false;
+      pendingReviveTarget = targetId;
+      pendingReviveAt = timestamp;
+      pendingReviveRequestId = requestId;
+      return true;
+    },
+    // Prefer this for new UI integrations. Never substitute predictable Math.random IDs.
+    // Legacy revive(targetId) remains available for older clients and fixtures.
+    reviveWithGeneratedId: (targetId) => {
+      if (!cryptoImpl || typeof cryptoImpl.getRandomValues !== 'function') return false;
+      let bytes;
+      try { bytes = cryptoImpl.getRandomValues(new Uint8Array(12)); } catch { return false; }
+      if (!(bytes instanceof Uint8Array) || bytes.length !== 12) return false;
+      const requestId = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      return api.revive(targetId, requestId);
+    },
+    get status() { return { connected: !!socket && socket.readyState === WebSocketImpl.OPEN, room, playerId, peerId, isHost }; }
+  };
+  return api;
+}

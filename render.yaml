@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: geese-with-teeth-relay
+    runtime: node
+    rootDir: multiplayer
+    buildCommand: npm install --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      # Set to the exact HTTPS origin serving the game (no trailing slash).
+      # Do not publish until this value is configured.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: NODE_ENV
+        value: production
