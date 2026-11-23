@@ -25,3 +25,17 @@ test('rejects unsafe URLs and embedded credentials', () => {
   assert.equal(readRoomInvite('https://user:pass@game.example/#coop=' + room), null);
   assert.equal(readRoomInvite('http://game.example/#coop=' + room), null);
 });
+
+test('legacy wrapper matches canonical loopback development policy', () => {
+  for (const host of ['localhost', '127.0.0.1', '[::1]']) {
+    const url = 'http://' + host + ':8787/play?private=token';
+    const link = createRoomInvite(url, room);
+    assert.equal(link, 'http://' + host + ':8787/play#coop=' + room);
+    assert.equal(readRoomInvite(link), room);
+    assert.equal(readRoomInvite(url + '#coop=' + room), null);
+  }
+  for (const url of ['http://192.168.1.10/play', 'http://game.example/play']) {
+    assert.throws(() => createRoomInvite(url, room));
+    assert.equal(readRoomInvite(url + '#coop=' + room), null);
+  }
+});
