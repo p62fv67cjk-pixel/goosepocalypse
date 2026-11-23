@@ -16,5 +16,7 @@ test('rejects malformed, ambiguous or credential-bearing invitations', () => {
   assert.throws(() => makeInviteLink('javascript:alert(1)', room), /game URL/);
   for (const fragment of ['#coop=' + room + '&coop=' + room, '#coop=%61' + 'a'.repeat(23), '#other=' + room, '#coop=' + room + '&x=1'])
     assert.equal(readInviteRoom('https://example.org/game' + fragment), null);
+  assert.equal(readInviteRoom('https://user:secret@example.org/game#coop=' + room), null);
+  assert.equal(readInviteRoom('http://user@example.org/game#coop=' + room), null);
   assert.equal(readInviteRoom('not a url'), null);
 });
