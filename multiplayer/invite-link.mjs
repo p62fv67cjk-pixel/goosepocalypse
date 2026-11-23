@@ -11,7 +11,7 @@ export function makeInviteLink(pageUrl, room) {
 export function readInviteRoom(pageUrl) {
   let url;
   try { url = new URL(pageUrl); } catch { return null; }
-  if (!['https:', 'http:'].includes(url.protocol)) return null;
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null;
   // No duplicate keys, unrelated fragments or percent-encoded ambiguity.
   const match = /^#coop=([a-f0-9]{24})$/.exec(url.hash);
   return match ? match[1] : null;
