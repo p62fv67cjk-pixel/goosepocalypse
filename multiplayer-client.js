@@ -21,6 +21,9 @@ export class GooseCoopClient extends EventTarget {
     if(!this.relayUrl)throw new Error('Co-op relay is not configured');
     if(!/^[A-Za-z0-9_-]{16,64}$/.test(room))throw new Error('Invalid room id');
     this.close();this.room=room;
+    // Each room connection has a fresh sequence namespace. Reusing counters from
+    // a previous room can make the first packets look stale to the new relay.
+    this.seq={input:0,state:0,character:0,damage:0,revive_start:0,revive_cancel:0};
     const u=new URL(this.relayUrl);u.protocol=u.protocol==='https:'?'wss:':u.protocol==='http:'?'ws:':u.protocol;
     u.pathname=`${u.pathname.replace(/\/$/,'')}/room/${encodeURIComponent(room)}`;
     const ws=this.ws=new WebSocket(u);
