@@ -1,27 +1,19 @@
-// Share only a room invitation, never a WebSocket credential or a simulated peer.
-// The game UI must still connect to a deployed WSS relay and join this room.
-const ROOM_RE = /^[a-f0-9]{24}$/;
+// Preserve the original API while using the canonical fragment invitation format.
+// Room capabilities must not appear in HTTP request URLs or analytics query strings.
+import { makeInviteLink, readInviteRoom } from './invite-link.mjs';
 
 export function createRoomInvite(pageUrl, roomCode) {
-  if (!ROOM_RE.test(roomCode)) throw new TypeError('Invalid room code');
   const url = new URL(pageUrl);
-  if (url.protocol !== 'https:') throw new TypeError('Invites require HTTPS');
-  if (url.username || url.password) throw new TypeError('Credential-bearing URLs are not shareable');
-  // Remove existing fragments and stale invitations rather than forwarding
-  // unrelated private parameters from the host's browser address bar.
-  url.hash = '';
+  if (url.protocol !== 'https:' || url.username || url.password)
+    throw new TypeError('Invites require a credential-free HTTPS game URL');
+  // Never forward unrelated query parameters, which may contain private tokens.
   url.search = '';
-  url.searchParams.set('room', roomCode);
-  return url.toString();
+  return makeInviteLink(url.href, roomCode);
 }
 
 export function readRoomInvite(pageUrl) {
   let url;
   try { url = new URL(pageUrl); } catch { return null; }
-  if (url.protocol !== 'https:' || url.username || url.password || url.hash) return null;
-  const codes = url.searchParams.getAll('room');
-  // Refuse extra parameters instead of treating a link with embedded tokens
-  // or conflicting routing hints as a clean room invitation.
-  return [...url.searchParams.keys()].length === 1 &&
-    codes.length === 1 && ROOM_RE.test(codes[0]) ? codes[0] : null;
+  if (url.protocol !== 'https:' || url.username || url.password || url.search) return null;
+  return readInviteRoom(url.href);
 }
