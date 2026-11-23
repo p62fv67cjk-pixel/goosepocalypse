@@ -3,17 +3,12 @@
 import { makeInviteLink, readInviteRoom } from './invite-link.mjs';
 
 export function createRoomInvite(pageUrl, roomCode) {
-  const url = new URL(pageUrl);
-  if (url.protocol !== 'https:' || url.username || url.password)
-    throw new TypeError('Invites require a credential-free HTTPS game URL');
-  // Never forward unrelated query parameters, which may contain private tokens.
-  url.search = '';
-  return makeInviteLink(url.href, roomCode);
+  // The canonical validator permits HTTPS publicly and HTTP only on loopback
+  // for local development. It also strips private query parameters.
+  return makeInviteLink(pageUrl, roomCode);
 }
 
 export function readRoomInvite(pageUrl) {
-  let url;
-  try { url = new URL(pageUrl); } catch { return null; }
-  if (url.protocol !== 'https:' || url.username || url.password || url.search) return null;
-  return readInviteRoom(url.href);
+  // Use exactly the same origin and query validation as the canonical reader.
+  return readInviteRoom(pageUrl);
 }
