@@ -1,0 +1,21 @@
+name: Legacy co-op socket regression
+on:
+  pull_request:
+    paths:
+      - 'multiplayer-client.js'
+      - 'tests/legacy-coop-socket.test.mjs'
+      - '.github/workflows/legacy-coop-socket.yml'
+  push:
+    paths:
+      - 'multiplayer-client.js'
+      - 'tests/legacy-coop-socket.test.mjs'
+      - '.github/workflows/legacy-coop-socket.yml'
+jobs:
+  socket-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/legacy-coop-socket.test.mjs

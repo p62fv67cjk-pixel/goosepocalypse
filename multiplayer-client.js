@@ -21,13 +21,16 @@ export class GooseCoopClient extends EventTarget {
     if(!this.relayUrl)throw new Error('Co-op relay is not configured');
     if(!/^[A-Za-z0-9_-]{16,64}$/.test(room))throw new Error('Invalid room id');
     this.close();this.room=room;
+    // Each room connection has a fresh sequence namespace. Reusing counters from
+    // a previous room can make the first packets look stale to the new relay.
+    this.seq={input:0,state:0,character:0,damage:0,revive_start:0,revive_cancel:0};
     const u=new URL(this.relayUrl);u.protocol=u.protocol==='https:'?'wss:':u.protocol==='http:'?'ws:':u.protocol;
     u.pathname=`${u.pathname.replace(/\/$/,'')}/room/${encodeURIComponent(room)}`;
     const ws=this.ws=new WebSocket(u);
-    ws.addEventListener('open',()=>this.dispatchEvent(new CustomEvent('transportopen')));
-    ws.addEventListener('message',e=>this.#receive(e.data));
+    ws.addEventListener('open',()=>{if(this.ws===ws)this.dispatchEvent(new CustomEvent('transportopen'))});
+    ws.addEventListener('message',e=>{if(this.ws===ws)this.#receive(e.data)});
     ws.addEventListener('close',e=>{if(this.ws!==ws)return;this.connected=false;this.slot=null;this.dispatchEvent(new CustomEvent('disconnect',{detail:{code:e.code,reason:e.reason}}))});
-    ws.addEventListener('error',()=>this.dispatchEvent(new CustomEvent('transporterror')));
+    ws.addEventListener('error',()=>{if(this.ws===ws)this.dispatchEvent(new CustomEvent('transporterror'))});
     return ws;
   }
   #receive(raw){
@@ -38,9 +41,11 @@ export class GooseCoopClient extends EventTarget {
     this.dispatchEvent(new CustomEvent('message',{detail:m}));
   }
   #send(type,payload={}){
-    if(!this.ws||this.ws.readyState!==WebSocket.OPEN)return false;
-    const seq=this.seq[type]??0;this.seq[type]=seq+1;
-    this.ws.send(JSON.stringify({t:type,seq,...payload}));return true;
+    const ws=this.ws;
+    if(!ws||ws.readyState!==WebSocket.OPEN)return false;
+    const seq=this.seq[type]??0;
+    try{ws.send(JSON.stringify({t:type,seq,...payload}))}catch{return false}
+    this.seq[type]=seq+1;return true;
   }
   input({moveX=0,moveY=0,yaw=0,pitch=0,sprint=false,fire=false}={}){return this.#send('input',{move:[moveX,moveY],yaw,pitch,sprint,fire})}
   state(x,z){return this.#send('state',{x,z})}
