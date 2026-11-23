@@ -6,7 +6,7 @@ test('room invitations round-trip through fragments without leaking to query', (
   const link = makeInviteLink('https://example.org/game/index.html?mode=mobile#old', room);
   const url = new URL(link);
   assert.equal(url.hash, '#coop=' + room);
-  assert.equal(url.search, '?mode=mobile');
+  assert.equal(url.search, '');
   assert.equal(readInviteRoom(link), room);
 });
 test('rejects malformed, ambiguous or credential-bearing invitations', () => {
